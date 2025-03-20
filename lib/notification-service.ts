@@ -1,0 +1,135 @@
+import { 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  getDoc, 
+  doc 
+} from "firebase/firestore";
+import { db } from "./firebase";
+import { NotificationType } from "./notifications-context";
+
+// Create a notification for a user
+export async function createNotification(
+  userId: string,
+  type: NotificationType,
+  title: string,
+  body: string,
+  data?: any
+) {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      userId,
+      type,
+      title,
+      body,
+      isRead: false,
+      createdAt: serverTimestamp(),
+      data
+    });
+  } catch (error) {
+    console.error("Error creating notification:", error);
+  }
+}
+
+// Create a message notification
+export async function createMessageNotification(
+  recipientId: string,
+  senderId: string,
+  conversationId: string,
+  message: string
+) {
+  try {
+    // Get sender info to include in notification
+    const senderDoc = await getDoc(doc(db, "users", senderId));
+    let senderType = "";
+    
+    if (senderDoc.exists()) {
+      senderType = senderDoc.data().userType;
+    }
+    
+    // Get sender profile
+    const profilePath = `profiles/${senderType}s`;
+    const senderProfileDoc = await getDoc(doc(db, profilePath, senderId));
+    
+    let senderName = "Someone";
+    if (senderProfileDoc.exists()) {
+      senderName = senderProfileDoc.data().name || 
+                  senderProfileDoc.data().fullName || 
+                  "Someone";
+    }
+    
+    // Create the notification
+    await createNotification(
+      recipientId,
+      "message",
+      `New message from ${senderName}`,
+      message.length > 50 ? `${message.substring(0, 50)}...` : message,
+      {
+        conversationId,
+        senderId
+      }
+    );
+  } catch (error) {
+    console.error("Error creating message notification:", error);
+  }
+}
+
+// Create a phone request notification
+export async function createPhoneRequestNotification(
+  recipientId: string,
+  requesterId: string,
+  requestId: string,
+  status: string
+) {
+  try {
+    // Get requester info
+    const requesterDoc = await getDoc(doc(db, "users", requesterId));
+    let requesterType = "";
+    
+    if (requesterDoc.exists()) {
+      requesterType = requesterDoc.data().userType;
+    }
+    
+    // Get requester profile
+    const profilePath = `profiles/${requesterType}s`;
+    const requesterProfileDoc = await getDoc(doc(db, profilePath, requesterId));
+    
+    let requesterName = "Someone";
+    if (requesterProfileDoc.exists()) {
+      requesterName = requesterProfileDoc.data().name || 
+                     requesterProfileDoc.data().fullName || 
+                     "Someone";
+    }
+    
+    let title = "";
+    let body = "";
+    
+    // Set title and body based on status
+    if (status === "pending") {
+      title = `New phone number request`;
+      body = `${requesterName} has requested your phone number`;
+    } else if (status === "approved") {
+      title = `Phone request approved`;
+      body = `Your request for phone number has been approved`;
+    } else if (status === "rejected") {
+      title = `Phone request rejected`;
+      body = `Your request for phone number has been rejected`;
+    }
+    
+    // Create the notification
+    if (title && body) {
+      await createNotification(
+        recipientId,
+        "phone_request",
+        title,
+        body,
+        {
+          requestId,
+          requesterId
+        }
+      );
+    }
+  } catch (error) {
+    console.error("Error creating phone request notification:", error);
+  }
+} 

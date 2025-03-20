@@ -1,0 +1,91 @@
+# Cursor Rules for TeachersGallery.com
+
+## Project Overview
+TeachersGallery.com is a platform where teachers can create profiles to showcase their experience and qualifications, and students or parents can browse these profiles to hire teachers. The app includes features like user registration, profile management, communication, and payment integration.
+
+## Implementation Checklist Progress
+Current Focus: Components
+- [x] Review all design mockups in the designs folder
+- [x] Create a component hierarchy based on the designs
+- [x] Identify color scheme and typography from designs
+- [x] Plan responsive layouts for mobile and desktop
+- [x] Create UI component library plan based on Shadcn components
+
+Project Setup:
+- [x] Initialize Next.js project
+- [x] Configure Tailwind CSS
+- [x] Set up Shadcn component library
+- [x] Configure Firebase (Auth, Firestore, Storage)
+- [x] Set up environment variables
+- [x] Create project structure (pages, components, hooks, etc.)
+
+Next focus:
+- [ ] Create Button component
+- [ ] Create TeacherCard component
+- [ ] Create Navbar component
+- [ ] Create Footer component
+
+## Tech Stack
+- **Frontend**: Next.js, Tailwind CSS, Shadcn components
+- **Backend**: Firebase (Authentication, Firestore, Storage)
+- **Payment Gateway**: Razorpay
+- **Deployment**: Vercel
+
+## Key Guidelines
+
+### 1. Tech Stack Usage
+- Use **Next.js** for routing, server-side rendering, and API routes.
+- Style components with **Tailwind CSS** and utilize **Shadcn** for pre-built UI components.
+- Implement authentication with **Firebase Authentication**.
+- Store data in **Firestore** and manage file uploads (e.g., avatars) with **Firebase Storage**.
+- Integrate **Razorpay** for processing payments.
+
+### 2. User Types and Workflows
+- There are three user types: **Teachers**, **Students**, and **Parents**.
+- Each user type has a distinct registration and onboarding process (3 steps each).
+- Teachers can manage their profiles, including visibility and featured status.
+- Students and parents can browse teacher profiles, send messages, and request phone numbers.
+- Implement role-based access control where necessary.
+
+### 3. Coding Standards
+- Use **functional components** with React Hooks.
+- Follow a consistent naming convention (e.g., camelCase for variables, PascalCase for components).
+- Write modular and reusable code; avoid duplication.
+- Ensure code is clean, well-commented, and easy to maintain.
+
+### 4. Security
+- Sanitize and validate all user inputs to prevent injection attacks.
+- Use Firebase security rules to protect data access.
+- Handle sensitive data (e.g., phone numbers) securely; only reveal after approval.
+- Ensure payment transactions are secure and comply with Razorpay's guidelines.
+
+### 5. Design Fidelity
+- Refer to the design files in the `designs` folder for UI layout and styling.
+- Match the visual style, colors, and typography as closely as possible.
+- Ensure the app is responsive and works well on both mobile and desktop.
+
+### 6. Testing and Debugging
+- Write unit tests for critical components and functions using Jest or React Testing Library.
+- Use ESLint for code linting and maintain a consistent code style.
+- Implement error handling and logging for easier debugging.
+
+### 7. Performance
+- Optimize images and assets for faster loading times.
+- Use Next.js features like `getStaticProps` or `getServerSideProps` for efficient data fetching.
+- Minimize the use of client-side rendering for better SEO and performance.
+
+### 8. Deployment and Maintenance
+- Set up CI/CD pipelines on Vercel for automated testing and deployment.
+- Manage environment variables securely using Vercel's dashboard.
+- Monitor app performance and user feedback post-deployment.
+
+## Step-by-Step Implementation
+- Complete one checklist item at a time
+- Mark items as done when completed
+- Document findings and decisions for each completed step
+- Update this file to reflect current progress and next steps
+
+## Additional Notes
+- The rating system is planned for future implementation; ensure the database schema can support it.
+- Prioritize accessibility in the UI to make the app usable for all users.
+- Document any complex logic or integrations for future reference.

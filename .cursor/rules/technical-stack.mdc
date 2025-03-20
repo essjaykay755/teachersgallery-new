@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Technical Stack
+globs: 
+alwaysApply: true
+---
+
+### **Basic Tech Stack for TeachersGallery.com**
+
+- **Frontend:**
+  - **Next.js**: A React framework that enables server-side rendering, routing, and efficient building of the user interface.
+  - **Tailwind CSS**: A utility-first CSS framework for rapid and responsive styling of the application.
+  - **Shadcn**: Pre-built UI components to streamline development and ensure a consistent design.
+
+- **Backend:**
+  - **Firebase Authentication**: Manages user signup, login, and authentication for secure access by teachers, students, and parents.
+  - **Firestore**: A NoSQL database for storing user profiles, messages, phone number requests, and payment-related data.
+  - **Firebase Storage**: Handles the storage and retrieval of avatar images uploaded by users.
+
+- **Payment Gateway:**
+  - **Razorpay**: A payment processing service to handle the 99 INR monthly fee for teachers opting for the "featured" tag.
+
+- **Deployment:**
+  - **Vercel**: A hosting platform optimized for Next.js applications, offering seamless deployment and scalability.
