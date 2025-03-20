@@ -41,7 +41,7 @@ export default function StudentOnboardingStep2() {
     // Check if student data already exists for step 2
     const fetchStudentData = async () => {
       try {
-        const studentDoc = await getDoc(doc(db, "profiles", "students", user.uid));
+        const studentDoc = await getDoc(doc(db, "students", user.uid));
         
         if (studentDoc.exists()) {
           const data = studentDoc.data();
@@ -87,7 +87,7 @@ export default function StudentOnboardingStep2() {
       
       // Update student profile document in Firestore with step 2 data
       await setDoc(
-        doc(db, "profiles", "students", user.uid),
+        doc(db, "students", user.uid),
         {
           currentClass: finalClass,
           updatedAt: new Date().toISOString(),

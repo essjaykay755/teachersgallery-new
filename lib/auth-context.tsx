@@ -149,54 +149,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Watch for auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      
-      if (user) {
-        // Set session cookie
-        Cookies.set('session', 'true', { expires: 7 });
+    let mounted = true;
+    
+    try {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (!mounted) return;
         
-        // Fetch user profile from Firestore
-        try {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          if (userDoc.exists()) {
-            const data = userDoc.data() as UserProfile;
-            setUserProfile(data);
-            
-            // Set custom headers for middleware
-            document.cookie = `x-user-type=${data.userType}; path=/;`;
-            document.cookie = `x-onboarding-completed=${!!data.onboardingCompleted}; path=/;`;
-            
-            // If the user is newly registered and hasn't completed onboarding, redirect to onboarding
-            if (!data.onboardingCompleted) {
-              // Check if user has any profile data
-              const profileRef = collection(db, "profiles", data.userType + "s");
-              const profileDoc = await getDoc(doc(profileRef, user.uid));
-              
-              if (!profileDoc.exists()) {
-                router.push(`/onboarding/${data.userType}/step1`);
+        setUser(user);
+        
+        if (user) {
+          // Set session cookie
+          Cookies.set('session', 'true', { expires: 7 });
+          
+          // Fetch user profile from Firestore
+          try {
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            if (userDoc.exists()) {
+              const data = userDoc.data() as UserProfile;
+              if (mounted) {
+                setUserProfile(data);
               }
+              
+              // Set custom headers for middleware
+              document.cookie = `x-user-type=${data.userType}; path=/;`;
+              document.cookie = `x-onboarding-completed=${!!data.onboardingCompleted}; path=/;`;
+              
+              // If the user is newly registered and hasn't completed onboarding, redirect to onboarding
+              if (!data.onboardingCompleted) {
+                // Check if user has any profile data based on user type
+                try {
+                  let profileExists = false;
+                  
+                  // Check the appropriate collection based on user type
+                  if (data.userType === "teacher") {
+                    const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+                    profileExists = teacherDoc.exists();
+                  } else if (data.userType === "student") {
+                    const studentDoc = await getDoc(doc(db, "students", user.uid));
+                    profileExists = studentDoc.exists();
+                  } else if (data.userType === "parent") {
+                    const parentDoc = await getDoc(doc(db, "parents", user.uid));
+                    profileExists = parentDoc.exists();
+                  }
+                  
+                  if (!profileExists && mounted) {
+                    router.push(`/onboarding/${data.userType}/step1`);
+                  }
+                } catch (error) {
+                  console.error("Error checking profile existence:", error);
+                  // If there's an error, redirect to onboarding anyway
+                  if (mounted) {
+                    router.push(`/onboarding/${data.userType}/step1`);
+                  }
+                }
+              }
+            } else {
+              console.warn("User document does not exist in Firestore");
             }
-          } else {
-            console.warn("User document does not exist in Firestore");
+          } catch (error: any) {
+            console.error("Error fetching user profile:", error);
+            if (error.code === 'permission-denied') {
+              console.error("Permission denied. Check Firestore rules.");
+            }
           }
-        } catch (error: any) {
-          console.error("Error fetching user profile:", error);
-          if (error.code === 'permission-denied') {
-            console.error("Permission denied. Check Firestore rules.");
+        } else {
+          if (mounted) {
+            setUserProfile(null);
           }
+          Cookies.remove('session');
+          document.cookie = "x-user-type=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          document.cookie = "x-onboarding-completed=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         }
-      } else {
-        setUserProfile(null);
-        Cookies.remove('session');
-        document.cookie = "x-user-type=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        document.cookie = "x-onboarding-completed=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      }
+        
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
       
+      return () => {
+        mounted = false;
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error("Error setting up auth state listener:", error);
       setIsLoading(false);
-    });
-
-    return () => unsubscribe();
+      return () => {
+        mounted = false;
+      };
+    }
   }, [router]);
 
   const value = {

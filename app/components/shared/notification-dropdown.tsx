@@ -10,7 +10,24 @@ import { Notification } from '@/lib/notifications-context';
 export function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const [error, setError] = useState<string | null>(null);
+  
+  // Try/catch the hook usage to prevent app crashes
+  let notificationsData = {
+    notifications: [] as Notification[],
+    unreadCount: 0,
+    markAsRead: async (id: string) => {},
+    markAllAsRead: async () => {}
+  };
+  
+  try {
+    notificationsData = useNotifications();
+  } catch (err) {
+    console.error("Error using notifications:", err);
+    setError("Unable to load notifications");
+  }
+  
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = notificationsData;
   const router = useRouter();
 
   // Close dropdown when clicking outside
@@ -41,17 +58,21 @@ export function NotificationDropdown() {
 
   // Handle notification click
   const handleNotificationClick = async (notification: Notification) => {
-    // Mark as read
-    await markAsRead(notification.id);
-    
-    // Navigate based on notification type
-    if (notification.type === 'message' && notification.data?.conversationId) {
-      router.push(`/dashboard/messages/${notification.data.conversationId}`);
-    } else if (notification.type === 'phone_request') {
-      router.push('/dashboard/phone-requests');
+    try {
+      // Mark as read
+      await markAsRead(notification.id);
+      
+      // Navigate based on notification type
+      if (notification.type === 'message' && notification.data?.conversationId) {
+        router.push(`/dashboard/messages/${notification.data.conversationId}`);
+      } else if (notification.type === 'phone_request') {
+        router.push('/dashboard/phone-requests');
+      }
+      
+      setIsOpen(false);
+    } catch (err) {
+      console.error("Error handling notification click:", err);
     }
-    
-    setIsOpen(false);
   };
 
   // Get notification icon based on type
@@ -65,6 +86,17 @@ export function NotificationDropdown() {
         return <Bell className="h-5 w-5 text-gray-500" />;
     }
   };
+
+  // If there was an error with the hook, render minimal UI
+  if (error) {
+    return (
+      <div className="relative">
+        <button className="text-gray-700 hover:text-gray-900">
+          <Bell className="h-5 w-5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -87,7 +119,13 @@ export function NotificationDropdown() {
             <h3 className="font-medium text-gray-700">Notifications</h3>
             {unreadCount > 0 && (
               <button
-                onClick={() => markAllAsRead()}
+                onClick={() => {
+                  try {
+                    markAllAsRead();
+                  } catch (err) {
+                    console.error("Error marking all as read:", err);
+                  }
+                }}
                 className="text-xs text-blue-600 hover:text-blue-800"
               >
                 Mark all as read
@@ -96,7 +134,7 @@ export function NotificationDropdown() {
           </div>
           
           <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
+            {!notifications || notifications.length === 0 ? (
               <div className="py-8 text-center text-gray-500">
                 <Bell className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                 <p>No notifications yet</p>

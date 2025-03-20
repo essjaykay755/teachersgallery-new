@@ -36,7 +36,7 @@ export default function StudentOnboardingStep1() {
     // Check if student data already exists for step 1
     const fetchStudentData = async () => {
       try {
-        const studentDoc = await getDoc(doc(db, "profiles", "students", user.uid));
+        const studentDoc = await getDoc(doc(db, "students", user.uid));
         
         if (studentDoc.exists()) {
           const data = studentDoc.data();
@@ -124,14 +124,14 @@ export default function StudentOnboardingStep1() {
       
       // Upload avatar if provided
       if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/students/${user.uid}`);
+        const avatarRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(avatarRef, avatarFile);
         avatarUrl = await getDownloadURL(avatarRef);
       }
       
       // Create or update student profile document in Firestore
       await setDoc(
-        doc(db, "profiles", "students", user.uid),
+        doc(db, "students", user.uid),
         {
           fullName,
           phoneNumber,

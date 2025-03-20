@@ -49,7 +49,7 @@ export default function ParentOnboardingStep3() {
     // Check if parent data already exists for step 3
     const fetchParentData = async () => {
       try {
-        const parentDoc = await getDoc(doc(db, "profiles", "parents", user.uid));
+        const parentDoc = await getDoc(doc(db, "parents", user.uid));
         
         if (parentDoc.exists()) {
           const data = parentDoc.data();
@@ -179,7 +179,7 @@ export default function ParentOnboardingStep3() {
       
       // Update parent profile document in Firestore with step 3 data
       await setDoc(
-        doc(db, "profiles", "parents", user.uid),
+        doc(db, "parents", user.uid),
         {
           subjects: selectedSubjects,
           location,

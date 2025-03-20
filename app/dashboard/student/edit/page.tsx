@@ -44,7 +44,7 @@ function StudentEditProfilePage() {
       if (!user) return;
       
       try {
-        const studentDoc = await getDoc(doc(db, "profiles", "students", user.uid));
+        const studentDoc = await getDoc(doc(db, "students", user.uid));
         
         if (studentDoc.exists()) {
           const data = studentDoc.data();
@@ -67,10 +67,10 @@ function StudentEditProfilePage() {
             setAvatarPreview(data.avatarUrl);
           }
         }
+        
+        setIsLoading(false);
       } catch (error) {
         console.error("Error fetching student profile:", error);
-        setError("Failed to load your profile data. Please try again.");
-      } finally {
         setIsLoading(false);
       }
     };
@@ -161,7 +161,7 @@ function StudentEditProfilePage() {
       }
       
       // Update Firestore
-      await updateDoc(doc(db, "profiles", "students", user.uid), studentData);
+      await updateDoc(doc(db, "students", user.uid), studentData);
       
       setSuccessMessage("Profile updated successfully");
       

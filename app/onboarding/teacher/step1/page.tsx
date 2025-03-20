@@ -102,7 +102,7 @@ export default function TeacherOnboardingStep1() {
       let avatarUrl = avatarPreview;
       
       if (avatarFile) {
-        const storageRef = ref(storage, `avatars/teachers/${user.uid}/${avatarFile.name}`);
+        const storageRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(storageRef, avatarFile);
         avatarUrl = await getDownloadURL(storageRef);
       }

@@ -97,24 +97,42 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       return;
     }
     
-    const notificationsQuery = query(
-      collection(db, "notifications"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
-    
-    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      const notificationsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Notification[];
+    try {
+      const notificationsQuery = query(
+        collection(db, "notifications"),
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
       
-      setNotifications(notificationsData);
-    }, (error) => {
-      console.error("Error subscribing to notifications:", error);
-    });
-    
-    return () => unsubscribe();
+      const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+        try {
+          const notificationsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Notification[];
+          
+          setNotifications(notificationsData);
+        } catch (error) {
+          console.error("Error processing notification data:", error);
+          setNotifications([]);
+        }
+      }, (error) => {
+        console.error("Error subscribing to notifications:", error);
+        // Don't crash the app for notification errors
+        setNotifications([]);
+      });
+      
+      return () => {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error("Error unsubscribing from notifications:", error);
+        }
+      };
+    } catch (error) {
+      console.error("Error setting up notifications listener:", error);
+      return () => {};
+    }
   }, [user]);
   
   const value = {

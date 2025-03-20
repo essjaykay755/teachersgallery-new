@@ -36,7 +36,7 @@ export default function ParentOnboardingStep1() {
     // Check if parent data already exists for step 1
     const fetchParentData = async () => {
       try {
-        const parentDoc = await getDoc(doc(db, "profiles", "parents", user.uid));
+        const parentDoc = await getDoc(doc(db, "parents", user.uid));
         
         if (parentDoc.exists()) {
           const data = parentDoc.data();
@@ -124,14 +124,14 @@ export default function ParentOnboardingStep1() {
       
       // Upload avatar if provided
       if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/parents/${user.uid}`);
+        const avatarRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(avatarRef, avatarFile);
         avatarUrl = await getDownloadURL(avatarRef);
       }
       
       // Create or update parent profile document in Firestore
       await setDoc(
-        doc(db, "profiles", "parents", user.uid),
+        doc(db, "parents", user.uid),
         {
           fullName,
           phoneNumber,

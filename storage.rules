@@ -2,7 +2,19 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow users to upload their own avatars
+    // Allow access to avatars directly under the avatars folder
+    match /avatars/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow access to avatars organized by user type
+    match /avatars/{userType}/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow access to avatars with fileName parameter
     match /avatars/{userType}/{userId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;

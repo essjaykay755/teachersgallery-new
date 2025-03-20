@@ -184,7 +184,7 @@ function TeacherEditProfilePage() {
       
       // Upload new avatar if selected
       if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/teachers/${user.uid}/${avatarFile.name}`);
+        const avatarRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(avatarRef, avatarFile);
         avatarUrl = await getDownloadURL(avatarRef);
       }

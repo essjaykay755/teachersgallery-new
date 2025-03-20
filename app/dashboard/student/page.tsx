@@ -22,7 +22,7 @@ function StudentDashboardPage() {
       if (!user) return;
       
       try {
-        const studentDoc = await getDoc(doc(db, "profiles", "students", user.uid));
+        const studentDoc = await getDoc(doc(db, "students", user.uid));
         
         if (studentDoc.exists()) {
           setStudentProfile(studentDoc.data());
