@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X, Search, MapPin, User, LogOut, Home, MessageSquare, HelpCircle } from "lucide-react";
+import { Menu, X, MapPin, User, LogOut, Home, MessageSquare, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
@@ -63,9 +63,7 @@ export function Navbar({ className }: NavbarProps) {
       <ClientOnly>
         <NotificationsProvider>
           <div className="flex items-center">
-            <div className="transform scale-75 origin-center">
-              <NotificationDropdown />
-            </div>
+            <NotificationDropdown />
           </div>
         </NotificationsProvider>
       </ClientOnly>
@@ -75,9 +73,9 @@ export function Navbar({ className }: NavbarProps) {
   return (
     <nav 
       className={cn(
-        "sticky top-0 z-50 transition-all duration-300 backdrop-blur-md w-full",
+        "sticky top-0 z-50 transition-all duration-300 backdrop-blur-xl w-full",
         isScrolled 
-          ? "bg-black/85 shadow-lg" 
+          ? "bg-black shadow-lg" 
           : "bg-black",
         className
       )}
@@ -131,13 +129,10 @@ export function Navbar({ className }: NavbarProps) {
           
           <div className="hidden md:flex items-center flex-1 max-w-xl mx-4">
             <div className="w-full relative group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-white group-focus-within:text-blue-400 transition-colors duration-200" strokeWidth={2.5} />
-              </div>
               <input
                 type="text"
                 placeholder="Search teachers by name, subject, or location..."
-                className="block w-full max-w-md pl-10 pr-3 py-1.5 rounded-full bg-gray-800/70 border border-gray-700 hover:border-gray-600 focus:border-blue-500 backdrop-blur-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
+                className="block w-full max-w-md pl-4 pr-3 py-1.5 rounded-full bg-gray-900/90 border border-gray-700 hover:border-gray-600 focus:border-blue-500 backdrop-blur-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
               />
             </div>
           </div>
@@ -249,13 +244,10 @@ export function Navbar({ className }: NavbarProps) {
       >
         <div className="p-4 space-y-4 border-t border-gray-700 bg-black">
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-white" strokeWidth={2.5} />
-            </div>
             <input
               type="text"
               placeholder="Search teachers..."
-              className="block w-full pl-10 pr-3 py-2 rounded-full bg-gray-800/70 border border-gray-700 focus:border-blue-500 backdrop-blur-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
+              className="block w-full pl-4 pr-3 py-2 rounded-full bg-gray-900/90 border border-gray-700 focus:border-blue-500 backdrop-blur-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
             />
           </div>
           
@@ -267,7 +259,7 @@ export function Navbar({ className }: NavbarProps) {
           <div className="space-y-2">
             <Link
               href="/"
-              className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-800/70 rounded-lg transition-colors duration-150"
+              className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
             >
               <Home className="h-4 w-4 mr-2" />
               Find Teachers
@@ -276,7 +268,7 @@ export function Navbar({ className }: NavbarProps) {
               <>
                 <Link
                   href="/dashboard/messages"
-                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-800/70 rounded-lg transition-colors duration-150"
+                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Messages
@@ -289,7 +281,7 @@ export function Navbar({ className }: NavbarProps) {
             )}
             <Link
               href="/faq"
-              className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-800/70 rounded-lg transition-colors duration-150"
+              className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
             >
               <HelpCircle className="h-4 w-4 mr-2" />
               FAQ
@@ -298,8 +290,8 @@ export function Navbar({ className }: NavbarProps) {
             {user ? (
               <>
                 <Link
-                  href="/profile"
-                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-800/70 rounded-lg transition-colors duration-150"
+                  href="/dashboard"
+                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
                 >
                   <User className="h-4 w-4 mr-2" />
                   Your Profile
@@ -318,7 +310,7 @@ export function Navbar({ className }: NavbarProps) {
               <div className="flex flex-col gap-2 mt-4">
                 <Link 
                   href="/login"
-                  className="block w-full text-center px-3 py-2 text-sm font-medium text-gray-300 border border-gray-600 hover:border-gray-500 hover:bg-gray-800/50 rounded-lg transition-all duration-200"
+                  className="block w-full text-center px-3 py-2 text-sm font-medium text-gray-300 border border-gray-600 hover:border-gray-500 hover:bg-gray-900/60 rounded-lg transition-all duration-200"
                 >
                   Sign in
                 </Link>
