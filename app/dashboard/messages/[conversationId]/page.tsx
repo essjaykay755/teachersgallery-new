@@ -16,13 +16,16 @@ import {
   addDoc,
   serverTimestamp,
   updateDoc,
-  onSnapshot
+  onSnapshot,
+  setDoc,
+  where
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Card, CardContent } from "@/app/components/shared/card";
-import { ChevronLeft, Send, Paperclip } from "lucide-react";
+import { ChevronLeft, Send, Paperclip, Phone, Check, X } from "lucide-react";
 import { createMessageNotification } from "@/lib/notification-service";
+import { createPhoneRequestNotification } from "@/lib/notification-service";
 import { 
   updateTypingStatus, 
   subscribeToTypingStatus, 
@@ -38,6 +41,9 @@ interface Message {
   createdAt: any;
   fileUrls?: string[];
   fileNames?: string[];
+  isSystemMessage?: boolean;
+  systemMessageType?: string;
+  requestId?: string;
 }
 
 function ConversationPage() {
@@ -55,6 +61,11 @@ function ConversationPage() {
   const [typingUsers, setTypingUsers] = useState<Record<string, any>>({});
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [phoneRequestStatus, setPhoneRequestStatus] = useState<string | null>(null);
+  const [phoneRequestId, setPhoneRequestId] = useState<string | null>(null);
+  const [phoneRequestLoading, setPhoneRequestLoading] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   // Fetch conversation and initial messages
   useEffect(() => {
@@ -418,37 +429,304 @@ function ConversationPage() {
       .toUpperCase();
   };
 
+  // Get user profile
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchUserProfile = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUserProfile(userDoc.data());
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+      }
+    };
+    
+    fetchUserProfile();
+  }, [user]);
+
+  // Check if phone number has been requested already
+  useEffect(() => {
+    if (!user || !otherUser || !otherUser.type || !otherUser.id) return;
+    
+    // Only check if current user is student or parent and other user is teacher
+    if ((userProfile?.userType === 'student' || userProfile?.userType === 'parent') && 
+        otherUser.type === 'teacher') {
+      checkPhoneRequestStatus();
+    }
+  }, [user, otherUser, userProfile]);
+
+  const checkPhoneRequestStatus = async () => {
+    if (!user || !otherUser || !otherUser.id) return;
+    
+    try {
+      const requestId = `${user.uid}_${otherUser.id}`;
+      const requestDoc = await getDoc(doc(db, "phoneNumberRequests", requestId));
+      
+      if (requestDoc.exists()) {
+        const requestData = requestDoc.data();
+        setPhoneRequestStatus(requestData.status);
+        setPhoneRequestId(requestId);
+        
+        // If request is approved, store the phone number
+        if (requestData.status === 'approved' && requestData.phoneNumber) {
+          setPhoneNumber(requestData.phoneNumber);
+        }
+      } else {
+        setPhoneRequestStatus(null);
+        setPhoneRequestId(null);
+      }
+    } catch (error) {
+      console.error("Error checking phone request status:", error);
+    }
+  };
+
+  const requestPhoneNumber = async () => {
+    if (!user || !otherUser || phoneRequestLoading) return;
+    
+    setPhoneRequestLoading(true);
+    
+    try {
+      const requestId = `${user.uid}_${otherUser.id}`;
+      const timestamp = new Date().toISOString();
+      
+      // Create a new phone number request
+      await setDoc(doc(db, 'phoneNumberRequests', requestId), {
+        id: requestId,
+        requesterId: user.uid,
+        requesterType: userProfile?.userType || 'student',
+        teacherId: otherUser.id,
+        teacherName: otherUser.name || 'Teacher',
+        status: 'pending',
+        timestamp,
+        phoneNumber: null
+      });
+      
+      // Create notification for the teacher
+      try {
+        await createPhoneRequestNotification(
+          otherUser.id,
+          user.uid,
+          requestId,
+          "pending"
+        );
+      } catch (notifError) {
+        console.error("Error creating phone request notification:", notifError);
+      }
+      
+      setPhoneRequestStatus('pending');
+      setPhoneRequestId(requestId);
+      
+      // Add a system message to the conversation
+      try {
+        console.log(`Adding system message to conversation ${conversationId}`);
+        await addDoc(
+          collection(db, "conversations", conversationId, "messages"),
+          {
+            text: "Phone number requested",
+            senderId: "system", // Use system as sender ID
+            createdAt: serverTimestamp(),
+            isSystemMessage: true,
+            systemMessageType: "phone_request",
+            requestId
+          }
+        );
+        
+        // Make sure we update the last message in the conversation
+        await updateDoc(doc(db, "conversations", conversationId), {
+          lastMessage: "Phone number requested", 
+          lastMessageAt: serverTimestamp()
+        });
+        
+        console.log(`System message added successfully`);
+      } catch (systemMessageError) {
+        console.error("Error adding system message:", systemMessageError);
+        // Don't throw here, the request was still created
+      }
+      
+    } catch (error) {
+      console.error("Error requesting phone number:", error);
+      alert("Failed to request phone number. Please try again.");
+    } finally {
+      setPhoneRequestLoading(false);
+    }
+  };
+
+  const handlePhoneRequest = async (action: 'approved' | 'reject') => {
+    if (!user || !otherUser || !phoneRequestId || phoneRequestLoading) return;
+    
+    setPhoneRequestLoading(true);
+    
+    try {
+      const requestDoc = await getDoc(doc(db, "phoneNumberRequests", phoneRequestId));
+      
+      if (!requestDoc.exists()) {
+        console.error("Phone request not found");
+        return;
+      }
+      
+      const requestData = requestDoc.data();
+      const requesterId = requestData.requesterId;
+      
+      // Update the request status
+      await updateDoc(doc(db, "phoneNumberRequests", phoneRequestId), {
+        status: action,
+        phoneNumber: action === 'approved' ? otherUser.phoneNumber : null,
+        respondedAt: serverTimestamp()
+      });
+      
+      // Create notification for the requester
+      try {
+        await createPhoneRequestNotification(
+          requesterId,
+          user.uid,
+          phoneRequestId,
+          action === 'approved' ? 'approved' : 'rejected'
+        );
+      } catch (notifError) {
+        console.error("Error creating phone request notification:", notifError);
+      }
+      
+      // Add a system message to the conversation
+      try {
+        const statusText = `Phone number request ${action === 'approved' ? 'approved' : 'rejected'}`;
+        console.log(`Adding system message: ${statusText}`);
+        
+        await addDoc(
+          collection(db, "conversations", conversationId, "messages"),
+          {
+            text: statusText,
+            senderId: "system",
+            createdAt: serverTimestamp(),
+            isSystemMessage: true,
+            systemMessageType: action === 'approved' ? "phone_approved" : "phone_rejected",
+            requestId: phoneRequestId
+          }
+        );
+        
+        // Update the conversation's last message
+        await updateDoc(doc(db, "conversations", conversationId), {
+          lastMessage: statusText,
+          lastMessageAt: serverTimestamp()
+        });
+        
+        console.log("System message added successfully");
+      } catch (systemMessageError) {
+        console.error("Error adding system message:", systemMessageError);
+        // Don't throw here, the request was still processed
+      }
+      
+      // Update local state
+      setPhoneRequestStatus(action);
+      if (action === 'approved') {
+        setPhoneNumber(otherUser.phoneNumber);
+      }
+      
+    } catch (error) {
+      console.error(`Error ${action === 'approved' ? 'approving' : 'rejecting'} phone request:`, error);
+      alert(`Failed to ${action === 'approved' ? 'approve' : 'reject'} phone request. Please try again.`);
+    } finally {
+      setPhoneRequestLoading(false);
+    }
+  };
+
   return (
     <DashboardShell>
       <div className="flex flex-col h-[calc(100vh-200px)]">
         {/* Header */}
-        <div className="flex items-center gap-4 py-4 border-b">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center text-gray-600 hover:text-gray-900"
-          >
-            <ChevronLeft className="h-5 w-5" />
-            <span className="sr-only">Back</span>
-          </button>
+        <div className="flex items-center justify-between py-4 border-b">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => router.back()}
+              className="flex items-center text-gray-600 hover:text-gray-900"
+            >
+              <ChevronLeft className="h-5 w-5" />
+              <span className="sr-only">Back</span>
+            </button>
+            
+            {otherUser && (
+              <div className="flex items-center gap-3">
+                <div className="relative h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
+                  {otherUser.avatarUrl ? (
+                    <Image
+                      src={otherUser.avatarUrl}
+                      alt={getDisplayName(otherUser)}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    getInitials(getDisplayName(otherUser))
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{getDisplayName(otherUser)}</p>
+                  <p className="text-xs text-gray-500 capitalize">{otherUser.type}</p>
+                </div>
+              </div>
+            )}
+          </div>
           
-          {otherUser && (
-            <div className="flex items-center gap-3">
-              <div className="relative h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
-                {otherUser.avatarUrl ? (
-                  <Image
-                    src={otherUser.avatarUrl}
-                    alt={getDisplayName(otherUser)}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  getInitials(getDisplayName(otherUser))
-                )}
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">{getDisplayName(otherUser)}</p>
-                <p className="text-xs text-gray-500 capitalize">{otherUser.type}</p>
-              </div>
+          {/* Phone Request Button for Students/Parents when chatting with Teacher */}
+          {otherUser && otherUser.type === 'teacher' && 
+           userProfile && (userProfile.userType === 'student' || userProfile.userType === 'parent') && (
+            <div className="flex items-center">
+              {phoneRequestStatus === null && (
+                <button
+                  onClick={requestPhoneNumber}
+                  disabled={phoneRequestLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Request Phone</span>
+                </button>
+              )}
+              
+              {phoneRequestStatus === 'pending' && (
+                <span className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-100 rounded-md">
+                  <Phone className="h-4 w-4" />
+                  <span>Request Pending</span>
+                </span>
+              )}
+              
+              {phoneRequestStatus === 'approved' && phoneNumber && (
+                <div className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 rounded-md">
+                  <Phone className="h-4 w-4" />
+                  <span>Phone: {phoneNumber}</span>
+                </div>
+              )}
+              
+              {phoneRequestStatus === 'rejected' && (
+                <span className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md">
+                  <Phone className="h-4 w-4" />
+                  <span>Request Rejected</span>
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Phone Request Management for Teachers */}
+          {otherUser && userProfile && userProfile.userType === 'teacher' && 
+           phoneRequestStatus === 'pending' && phoneRequestId && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700">Phone number requested</span>
+              <button
+                onClick={() => handlePhoneRequest('approved')}
+                disabled={phoneRequestLoading}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" />
+                <span>Approve</span>
+              </button>
+              <button
+                onClick={() => handlePhoneRequest('reject')}
+                disabled={phoneRequestLoading}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+                <span>Reject</span>
+              </button>
             </div>
           )}
         </div>
@@ -470,7 +748,20 @@ function ConversationPage() {
             <div className="space-y-4">
               {messages.map((message) => {
                 const isCurrentUser = message.senderId === user?.uid;
+                const isSystemMessage = message.senderId === "system" || message.isSystemMessage;
                 
+                // System message (like phone request notifications)
+                if (isSystemMessage) {
+                  return (
+                    <div key={message.id} className="flex justify-center">
+                      <div className="bg-gray-100 text-gray-600 text-sm py-1 px-3 rounded-full">
+                        {message.text}
+                      </div>
+                    </div>
+                  );
+                }
+                
+                // Regular chat message
                 return (
                   <div 
                     key={message.id} 

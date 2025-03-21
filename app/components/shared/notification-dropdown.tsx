@@ -93,7 +93,7 @@ export function NotificationDropdown() {
   if (error) {
     return (
       <div className="relative">
-        <button className="text-gray-700 hover:text-gray-900">
+        <button className="text-white hover:text-blue-300">
           <Bell className="h-5 w-5" />
         </button>
       </div>
@@ -103,7 +103,7 @@ export function NotificationDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button 
-        className="text-gray-700 hover:text-gray-900 relative"
+        className="text-white hover:text-blue-300 relative"
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Notifications"
       >

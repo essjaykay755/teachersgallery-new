@@ -381,6 +381,46 @@ export default function TeacherProfile() {
         // Don't throw, continue with the process even if notification fails
       }
       
+      // Add a system message to the conversation
+      try {
+        // Get or create conversation with the teacher
+        const userType = userProfile?.userType || 'student';
+        
+        console.log('Getting conversation to add phone request system message');
+        const conversationId = await getOrCreateConversation(
+          user.uid,
+          userType,
+          teacherId,
+          'teacher'
+        );
+        
+        console.log(`Adding system message to conversation ${conversationId}`);
+        
+        // Add the system message
+        await addDoc(
+          collection(db, "conversations", conversationId, "messages"),
+          {
+            text: "Phone number requested",
+            senderId: "system",
+            createdAt: serverTimestamp(),
+            isSystemMessage: true,
+            systemMessageType: "phone_request",
+            requestId
+          }
+        );
+        
+        // Update the conversation's last message
+        await updateDoc(doc(db, "conversations", conversationId), {
+          lastMessage: "Phone number requested",
+          lastMessageAt: serverTimestamp()
+        });
+        
+        console.log("System message added successfully");
+      } catch (systemMessageError) {
+        console.error("Error adding system message:", systemMessageError);
+        // Don't throw here, the request was still created
+      }
+      
       setPhoneRequestStatus('pending');
       return;
     } catch (error) {

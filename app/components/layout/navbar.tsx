@@ -245,12 +245,18 @@ export function Navbar({ className }: NavbarProps) {
               Find Teachers
             </Link>
             {user && (
-              <Link
-                href="/dashboard/messages"
-                className="block px-3 py-2 text-base font-medium text-white hover:bg-gray-700 rounded-md"
-              >
-                Messages
-              </Link>
+              <>
+                <Link
+                  href="/dashboard/messages"
+                  className="block px-3 py-2 text-base font-medium text-white hover:bg-gray-700 rounded-md"
+                >
+                  Messages
+                </Link>
+                <div className="px-3 py-2 flex items-center">
+                  {renderNotificationComponents()}
+                  <span className="ml-2 text-base font-medium text-white">Notifications</span>
+                </div>
+              </>
             )}
             <Link
               href="/faq"

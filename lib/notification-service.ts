@@ -48,11 +48,26 @@ export async function createMessageNotification(
     }
     
     // Get sender profile
-    const profilePath = `profiles/${senderType}s`;
-    const senderProfileDoc = await getDoc(doc(db, profilePath, senderId));
+    // Use direct collection path instead of nested path
+    const userCollection = senderType === 'teacher' ? 'teachers' : 
+                          senderType === 'parent' ? 'parents' : 'students';
+    
+    // Try to get the user profile from the direct collection first
+    let senderProfileDoc = await getDoc(doc(db, userCollection, senderId));
+    
+    // Fallback: try the nested profiles path if the direct path doesn't exist
+    if (!senderProfileDoc.exists()) {
+      console.log(`Profile not found in ${userCollection}, trying legacy path...`);
+      try {
+        // Only try this if necessary, with proper error handling
+        senderProfileDoc = await getDoc(doc(db, "profiles", `${senderType}s`, senderId));
+      } catch (pathError) {
+        console.error("Error accessing legacy profile path:", pathError);
+      }
+    }
     
     let senderName = "Someone";
-    if (senderProfileDoc.exists()) {
+    if (senderProfileDoc && senderProfileDoc.exists()) {
       senderName = senderProfileDoc.data().name || 
                   senderProfileDoc.data().fullName || 
                   "Someone";
@@ -101,8 +116,8 @@ export async function createPhoneRequestNotification(
     const userCollection = requesterType === 'teacher' ? 'teachers' : 
                           requesterType === 'parent' ? 'parents' : 'students';
     
-    // Get requester profile from the correct collection
-    const requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
+    // Get requester profile from the direct collection
+    let requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
     
     let requesterName = "Someone";
     if (requesterProfileDoc.exists()) {
@@ -110,12 +125,16 @@ export async function createPhoneRequestNotification(
                      requesterProfileDoc.data().fullName || 
                      "Someone";
     } else {
-      // If no profile found in the specific collection, try looking in general profiles
-      const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
-      if (fallbackProfileDoc.exists()) {
-        requesterName = fallbackProfileDoc.data().name || 
-                       fallbackProfileDoc.data().fullName || 
-                       "Someone";
+      // If no profile found in the direct collection, try looking in general profiles collection
+      try {
+        const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
+        if (fallbackProfileDoc.exists()) {
+          requesterName = fallbackProfileDoc.data().name || 
+                         fallbackProfileDoc.data().fullName || 
+                         "Someone";
+        }
+      } catch (profileError) {
+        console.error("Error accessing fallback profile:", profileError);
       }
     }
     

@@ -14,7 +14,9 @@ import {
   getDocs, 
   doc, 
   getDoc, 
-  updateDoc 
+  updateDoc, 
+  serverTimestamp,
+  addDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent } from "@/app/components/shared/card";
@@ -155,7 +157,8 @@ function PhoneRequestsPage() {
       // Update the request with status and phone number
       await updateDoc(doc(db, "phoneNumberRequests", requestId), {
         status: "approved",
-        phoneNumber: phoneNumber
+        phoneNumber: phoneNumber,
+        respondedAt: serverTimestamp()
       });
       
       console.log(`Request ${requestId} updated successfully with status approved and phoneNumber: ${phoneNumber}`);
@@ -167,6 +170,57 @@ function PhoneRequestsPage() {
         requestId,
         "approved"
       );
+      
+      // Find the conversation between the teacher and student/parent
+      try {
+        const conversationsQuery = query(
+          collection(db, "conversations"),
+          where("participants", "array-contains", user.uid)
+        );
+        
+        const conversationsSnapshot = await getDocs(conversationsQuery);
+        let conversationId = null;
+        
+        // Find the conversation with the requester
+        for (const convDoc of conversationsSnapshot.docs) {
+          const participants = convDoc.data().participants || [];
+          if (participants.includes(requesterId)) {
+            conversationId = convDoc.id;
+            break;
+          }
+        }
+        
+        // If conversation found, add a system message
+        if (conversationId) {
+          console.log(`Adding system message to conversation ${conversationId}`);
+          
+          // Add the system message
+          await addDoc(
+            collection(db, "conversations", conversationId, "messages"),
+            {
+              text: "Phone number request approved",
+              senderId: "system",
+              createdAt: serverTimestamp(),
+              isSystemMessage: true,
+              systemMessageType: "phone_approved",
+              requestId
+            }
+          );
+          
+          // Update the conversation's last message
+          await updateDoc(doc(db, "conversations", conversationId), {
+            lastMessage: "Phone number request approved",
+            lastMessageAt: serverTimestamp()
+          });
+          
+          console.log("System message added successfully");
+        } else {
+          console.log("No conversation found between teacher and requester");
+        }
+      } catch (systemMessageError) {
+        console.error("Error adding system message:", systemMessageError);
+        // Don't throw here, the request was still updated
+      }
       
       // Update local state
       setRequests(requests.map(req => 
@@ -185,7 +239,8 @@ function PhoneRequestsPage() {
     
     try {
       await updateDoc(doc(db, "phoneNumberRequests", requestId), {
-        status: "rejected"
+        status: "rejected",
+        respondedAt: serverTimestamp()
       });
       
       // Create notification for the requester
@@ -195,6 +250,57 @@ function PhoneRequestsPage() {
         requestId,
         "rejected"
       );
+      
+      // Find the conversation between the teacher and student/parent
+      try {
+        const conversationsQuery = query(
+          collection(db, "conversations"),
+          where("participants", "array-contains", user.uid)
+        );
+        
+        const conversationsSnapshot = await getDocs(conversationsQuery);
+        let conversationId = null;
+        
+        // Find the conversation with the requester
+        for (const convDoc of conversationsSnapshot.docs) {
+          const participants = convDoc.data().participants || [];
+          if (participants.includes(requesterId)) {
+            conversationId = convDoc.id;
+            break;
+          }
+        }
+        
+        // If conversation found, add a system message
+        if (conversationId) {
+          console.log(`Adding system message to conversation ${conversationId}`);
+          
+          // Add the system message
+          await addDoc(
+            collection(db, "conversations", conversationId, "messages"),
+            {
+              text: "Phone number request rejected",
+              senderId: "system",
+              createdAt: serverTimestamp(),
+              isSystemMessage: true,
+              systemMessageType: "phone_rejected",
+              requestId
+            }
+          );
+          
+          // Update the conversation's last message
+          await updateDoc(doc(db, "conversations", conversationId), {
+            lastMessage: "Phone number request rejected",
+            lastMessageAt: serverTimestamp()
+          });
+          
+          console.log("System message added successfully");
+        } else {
+          console.log("No conversation found between teacher and requester");
+        }
+      } catch (systemMessageError) {
+        console.error("Error adding system message:", systemMessageError);
+        // Don't throw here, the request was still updated
+      }
       
       // Update local state
       setRequests(requests.map(req => 
