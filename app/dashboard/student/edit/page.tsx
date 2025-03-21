@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { ArrowLeft, Upload, User, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, X } from "lucide-react";
 
 const classOptions = [
   "Pre-School", "Kindergarten",
@@ -26,7 +26,14 @@ function StudentEditProfilePage() {
   const [currentClass, setCurrentClass] = useState("");
   const [otherClass, setOtherClass] = useState("");
   const [school, setSchool] = useState("");
-  const [interests, setInterests] = useState("");
+  
+  // Subjects
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [subjectInput, setSubjectInput] = useState("");
+  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
+  
+  // Learning goals
+  const [learningGoals, setLearningGoals] = useState("");
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -39,6 +46,21 @@ function StudentEditProfilePage() {
   const { user } = useAuth();
   const router = useRouter();
   
+  // Define common subjects to filter
+  const commonSubjects = [
+    "Mathematics", "English", "Science", "Physics", "Chemistry", "Biology",
+    "History", "Geography", "Computer Science", "Economics", "Business Studies",
+    "Accounting", "Psychology", "Sociology", "Political Science", "Hindi",
+    "French", "Spanish", "German", "Music", "Art", "Physical Education"
+  ];
+
+  // Filter subjects based on input
+  const filteredSubjects = commonSubjects.filter(
+    (subject) =>
+      subject.toLowerCase().includes(subjectInput.toLowerCase()) &&
+      !selectedSubjects.includes(subject)
+  );
+  
   useEffect(() => {
     const fetchStudentProfile = async () => {
       if (!user) return;
@@ -48,29 +70,33 @@ function StudentEditProfilePage() {
         
         if (studentDoc.exists()) {
           const data = studentDoc.data();
-          setFullName(data.fullName || "");
+          
+          // Basic info
+          setFullName(data.name || "");
           setPhoneNumber(data.phoneNumber || "");
           
-          if (data.currentClass) {
-            if (classOptions.includes(data.currentClass)) {
-              setCurrentClass(data.currentClass);
-            } else {
-              setCurrentClass("Other");
-              setOtherClass(data.currentClass);
-            }
+          // Academic info
+          setCurrentClass(data.currentClass || "");
+          setOtherClass(data.otherClass || "");
+          setSchool(data.school || "");
+          
+          // Subjects
+          if (data.subjects && Array.isArray(data.subjects)) {
+            setSelectedSubjects(data.subjects);
           }
           
-          setSchool(data.school || "");
-          setInterests(data.interests || "");
+          // Learning goals
+          setLearningGoals(data.learningGoals || "");
           
+          // Avatar
           if (data.avatarUrl) {
             setAvatarPreview(data.avatarUrl);
           }
         }
-        
-        setIsLoading(false);
       } catch (error) {
         console.error("Error fetching student profile:", error);
+        setError("Failed to load your profile data. Please try again.");
+      } finally {
         setIsLoading(false);
       }
     };
@@ -105,6 +131,25 @@ function StudentEditProfilePage() {
     reader.readAsDataURL(file);
   };
   
+  const handleSubjectSelect = (subject: string) => {
+    if (!selectedSubjects.includes(subject)) {
+      setSelectedSubjects([...selectedSubjects, subject]);
+      setSubjectInput("");
+      setShowSubjectDropdown(false);
+    }
+  };
+  
+  const handleRemoveSubject = (subject: string) => {
+    setSelectedSubjects(selectedSubjects.filter((s) => s !== subject));
+  };
+  
+  const handleAddCustomSubject = () => {
+    if (subjectInput.trim() !== "" && !selectedSubjects.includes(subjectInput.trim())) {
+      setSelectedSubjects([...selectedSubjects, subjectInput.trim()]);
+      setSubjectInput("");
+    }
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -119,8 +164,18 @@ function StudentEditProfilePage() {
       return;
     }
     
-    if (currentClass === "Other" && !otherClass.trim()) {
-      setError("Please specify your class");
+    if (!phoneNumber.trim()) {
+      setError("Phone number is required");
+      return;
+    }
+    
+    if (!currentClass) {
+      setError("Current class is required");
+      return;
+    }
+    
+    if (selectedSubjects.length === 0) {
+      setError("Please select at least one subject");
       return;
     }
     
@@ -133,26 +188,25 @@ function StudentEditProfilePage() {
       
       // Upload new avatar if selected
       if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/students/${user.uid}`);
+        const avatarRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(avatarRef, avatarFile);
         avatarUrl = await getDownloadURL(avatarRef);
       }
       
       // Prepare student data
-      const studentData: {
-        fullName: string;
-        phoneNumber: string;
-        currentClass: string;
-        school: string;
-        interests: string;
-        updatedAt: number;
-        avatarUrl?: string;
-      } = {
-        fullName,
+      const studentData: any = {
+        name: fullName,
         phoneNumber,
-        currentClass: currentClass === "Other" ? otherClass : currentClass,
+        
+        // Academic info
+        currentClass,
+        otherClass: currentClass === "Other" ? otherClass : "",
         school,
-        interests,
+        
+        // Learning details
+        subjects: selectedSubjects,
+        learningGoals,
+        
         updatedAt: Date.now(),
       };
       
@@ -206,7 +260,7 @@ function StudentEditProfilePage() {
         </div>
         
         <div className="bg-white shadow-sm rounded-lg p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Avatar */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -251,102 +305,186 @@ function StudentEditProfilePage() {
               </div>
             </div>
             
-            {/* Basic Info */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name *
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  id="phoneNumber"
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-            </div>
-            
-            {/* Education */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label htmlFor="currentClass" className="block text-sm font-medium text-gray-700 mb-1">
-                  Current Class *
-                </label>
-                <select
-                  id="currentClass"
-                  value={currentClass}
-                  onChange={(e) => setCurrentClass(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                >
-                  <option value="">Select your class</option>
-                  {classOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {currentClass === "Other" && (
+            {/* Section: Personal Information */}
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="otherClass" className="block text-sm font-medium text-gray-700 mb-1">
-                    Specify Class *
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name *
                   </label>
                   <input
-                    id="otherClass"
+                    id="fullName"
                     type="text"
-                    value={otherClass}
-                    onChange={(e) => setOtherClass(e.target.value)}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                     required
                   />
                 </div>
-              )}
-              
-              <div>
-                <label htmlFor="school" className="block text-sm font-medium text-gray-700 mb-1">
-                  School/College
-                </label>
-                <input
-                  id="school"
-                  type="text"
-                  value={school}
-                  onChange={(e) => setSchool(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="Name of your school or college"
-                />
+                
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number *
+                  </label>
+                  <input
+                    id="phoneNumber"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                  />
+                </div>
               </div>
             </div>
             
-            {/* Interests */}
+            {/* Section: Educational Information */}
             <div>
-              <label htmlFor="interests" className="block text-sm font-medium text-gray-700 mb-1">
-                Subjects of Interest
-              </label>
-              <textarea
-                id="interests"
-                rows={3}
-                value={interests}
-                onChange={(e) => setInterests(e.target.value)}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="Subjects you're interested in learning"
-              />
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Educational Information</h2>
+              
+              {/* Current Class */}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
+                <div>
+                  <label htmlFor="currentClass" className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Class *
+                  </label>
+                  <select
+                    id="currentClass"
+                    value={currentClass}
+                    onChange={(e) => setCurrentClass(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                  >
+                    <option value="">Select your class</option>
+                    <option value="Class 1">Class 1</option>
+                    <option value="Class 2">Class 2</option>
+                    <option value="Class 3">Class 3</option>
+                    <option value="Class 4">Class 4</option>
+                    <option value="Class 5">Class 5</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 8">Class 8</option>
+                    <option value="Class 9">Class 9</option>
+                    <option value="Class 10">Class 10</option>
+                    <option value="Class 11">Class 11</option>
+                    <option value="Class 12">Class 12</option>
+                    <option value="College">College</option>
+                    <option value="Undergraduate">Undergraduate</option>
+                    <option value="Postgraduate">Postgraduate</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                
+                {currentClass === "Other" && (
+                  <div>
+                    <label htmlFor="otherClass" className="block text-sm font-medium text-gray-700 mb-1">
+                      Specify Your Class *
+                    </label>
+                    <input
+                      id="otherClass"
+                      type="text"
+                      value={otherClass}
+                      onChange={(e) => setOtherClass(e.target.value)}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      required
+                    />
+                  </div>
+                )}
+                
+                <div>
+                  <label htmlFor="school" className="block text-sm font-medium text-gray-700 mb-1">
+                    School/College
+                  </label>
+                  <input
+                    id="school"
+                    type="text"
+                    value={school}
+                    onChange={(e) => setSchool(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="Name of your school or college"
+                  />
+                </div>
+              </div>
+              
+              {/* Subjects */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Subjects You Want to Learn *
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedSubjects.map((subject) => (
+                    <div
+                      key={subject}
+                      className="flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
+                    >
+                      {subject}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubject(subject)}
+                        className="ml-1 rounded-full p-1 hover:bg-blue-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-grow">
+                    <input
+                      type="text"
+                      value={subjectInput}
+                      onChange={(e) => {
+                        setSubjectInput(e.target.value);
+                        setShowSubjectDropdown(true);
+                      }}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      placeholder="Add a subject you want to learn"
+                    />
+                    {showSubjectDropdown && subjectInput.length > 0 && (
+                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                        {filteredSubjects.length > 0 ? (
+                          filteredSubjects.map((subject) => (
+                            <div
+                              key={subject}
+                              onClick={() => handleSubjectSelect(subject)}
+                              className="relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-blue-100"
+                            >
+                              {subject}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-500">
+                            No matching subjects
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomSubject}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Learning Goals */}
+              <div>
+                <label htmlFor="learningGoals" className="block text-sm font-medium text-gray-700 mb-1">
+                  Learning Goals
+                </label>
+                <textarea
+                  id="learningGoals"
+                  rows={4}
+                  value={learningGoals}
+                  onChange={(e) => setLearningGoals(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  placeholder="What do you hope to achieve from these lessons?"
+                />
+              </div>
             </div>
             
             {/* Error/Success messages */}
@@ -377,21 +515,20 @@ function StudentEditProfilePage() {
             )}
             
             {/* Form Actions */}
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end space-x-4">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Cancel
               </button>
-              
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
               >
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>

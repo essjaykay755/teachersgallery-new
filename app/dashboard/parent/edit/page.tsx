@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, Trash2, X } from "lucide-react";
 
 const classOptions = [
   "Pre-School", "Kindergarten",
@@ -31,8 +31,17 @@ type ChildInfo = {
 function ParentEditProfilePage() {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [children, setChildren] = useState<ChildInfo[]>([]);
+  const [childrenAges, setChildrenAges] = useState("");
   const [location, setLocation] = useState("");
+  const [areasServed, setAreasServed] = useState("");
+  
+  // Subjects
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [subjectInput, setSubjectInput] = useState("");
+  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
+  
+  // Requirements
+  const [requirements, setRequirements] = useState("");
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -45,6 +54,21 @@ function ParentEditProfilePage() {
   const { user } = useAuth();
   const router = useRouter();
   
+  // Define common subjects to filter
+  const commonSubjects = [
+    "Mathematics", "English", "Science", "Physics", "Chemistry", "Biology",
+    "History", "Geography", "Computer Science", "Economics", "Business Studies",
+    "Accounting", "Psychology", "Sociology", "Political Science", "Hindi",
+    "French", "Spanish", "German", "Music", "Art", "Physical Education"
+  ];
+
+  // Filter subjects based on input
+  const filteredSubjects = commonSubjects.filter(
+    (subject) =>
+      subject.toLowerCase().includes(subjectInput.toLowerCase()) &&
+      !selectedSubjects.includes(subject)
+  );
+  
   useEffect(() => {
     const fetchParentProfile = async () => {
       if (!user) return;
@@ -54,14 +78,25 @@ function ParentEditProfilePage() {
         
         if (parentDoc.exists()) {
           const data = parentDoc.data();
-          setFullName(data.fullName || "");
+          
+          // Basic info
+          setFullName(data.name || "");
           setPhoneNumber(data.phoneNumber || "");
           
-          if (data.children && Array.isArray(data.children)) {
-            setChildren(data.children);
+          // Children info
+          setChildrenAges(data.childrenAges || "");
+          
+          // Location info
+          setLocation(data.location || "");
+          setAreasServed(data.areasServed || "");
+          
+          // Subjects
+          if (data.subjects && Array.isArray(data.subjects)) {
+            setSelectedSubjects(data.subjects);
           }
           
-          setLocation(data.location || "");
+          // Requirements
+          setRequirements(data.requirements || "");
           
           if (data.avatarUrl) {
             setAvatarPreview(data.avatarUrl);
@@ -105,28 +140,23 @@ function ParentEditProfilePage() {
     reader.readAsDataURL(file);
   };
   
-  const handleAddChild = () => {
-    setChildren([
-      ...children,
-      {
-        id: Date.now().toString(),
-        name: "",
-        age: "",
-        currentClass: "",
-      },
-    ]);
+  const handleSubjectSelect = (subject: string) => {
+    if (!selectedSubjects.includes(subject)) {
+      setSelectedSubjects([...selectedSubjects, subject]);
+      setSubjectInput("");
+      setShowSubjectDropdown(false);
+    }
   };
   
-  const handleRemoveChild = (id: string) => {
-    setChildren(children.filter((child) => child.id !== id));
+  const handleRemoveSubject = (subject: string) => {
+    setSelectedSubjects(selectedSubjects.filter((s) => s !== subject));
   };
   
-  const handleChildChange = (id: string, field: keyof ChildInfo, value: string) => {
-    setChildren(
-      children.map((child) =>
-        child.id === id ? { ...child, [field]: value } : child
-      )
-    );
+  const handleAddCustomSubject = () => {
+    if (subjectInput.trim() !== "" && !selectedSubjects.includes(subjectInput.trim())) {
+      setSelectedSubjects([...selectedSubjects, subjectInput.trim()]);
+      setSubjectInput("");
+    }
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,24 +178,19 @@ function ParentEditProfilePage() {
       return;
     }
     
-    // Validate children data
-    for (const child of children) {
-      if (!child.name.trim()) {
-        setError("All children must have a name");
-        return;
-      }
-      if (!child.age.trim()) {
-        setError("All children must have an age");
-        return;
-      }
-      if (!child.currentClass) {
-        setError("All children must have a class selected");
-        return;
-      }
-      if (child.currentClass === "Other" && !child.otherClass?.trim()) {
-        setError("Please specify the class for all children");
-        return;
-      }
+    if (!childrenAges.trim()) {
+      setError("Children's ages are required");
+      return;
+    }
+    
+    if (!location.trim()) {
+      setError("Location is required");
+      return;
+    }
+    
+    if (selectedSubjects.length === 0) {
+      setError("Please select at least one subject");
+      return;
     }
     
     try {
@@ -177,35 +202,27 @@ function ParentEditProfilePage() {
       
       // Upload new avatar if selected
       if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/parents/${user.uid}`);
+        const avatarRef = ref(storage, `avatars/${user.uid}`);
         await uploadBytes(avatarRef, avatarFile);
         avatarUrl = await getDownloadURL(avatarRef);
       }
       
-      // Process children data to replace "Other" with the actual value
-      const processedChildren = children.map(child => {
-        if (child.currentClass === "Other" && child.otherClass) {
-          return {
-            ...child,
-            currentClass: child.otherClass
-          };
-        }
-        return child;
-      });
-      
       // Prepare parent data
-      const parentData: {
-        fullName: string;
-        phoneNumber: string;
-        children: ChildInfo[];
-        location: string;
-        updatedAt: number;
-        avatarUrl?: string;
-      } = {
-        fullName,
+      const parentData: any = {
+        name: fullName,
         phoneNumber,
-        children: processedChildren,
+        
+        // Children info
+        childrenAges,
+        
+        // Location info
         location,
+        areasServed,
+        
+        // Requirements
+        subjects: selectedSubjects,
+        requirements,
+        
         updatedAt: Date.now(),
       };
       
@@ -259,7 +276,7 @@ function ParentEditProfilePage() {
         </div>
         
         <div className="bg-white shadow-sm rounded-lg p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Avatar */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -304,180 +321,176 @@ function ParentEditProfilePage() {
               </div>
             </div>
             
-            {/* Basic Info */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name *
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number *
-                </label>
-                <input
-                  id="phoneNumber"
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <input
-                  id="location"
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="City, State"
-                />
+            {/* Section: Personal Information */}
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Full Name *
+                  </label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number *
+                  </label>
+                  <input
+                    id="phoneNumber"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    required
+                  />
+                </div>
               </div>
             </div>
             
-            {/* Children */}
+            {/* Section: Children & Location Information */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Children
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Family & Location Information</h2>
+              
+              {/* Children Ages */}
+              <div className="mb-6">
+                <label htmlFor="childrenAges" className="block text-sm font-medium text-gray-700 mb-1">
+                  Children's Ages *
                 </label>
-                <button
-                  type="button"
-                  onClick={handleAddChild}
-                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Child
-                </button>
+                <input
+                  id="childrenAges"
+                  type="text"
+                  value={childrenAges}
+                  onChange={(e) => setChildrenAges(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  placeholder="e.g., 8, 12, 15"
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-500">Separate multiple ages with commas</p>
               </div>
               
-              {children.length === 0 ? (
-                <div className="bg-gray-50 rounded-md p-4 text-center text-gray-500">
-                  No children added yet. Click "Add Child" to add your child.
+              {/* Location */}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
+                <div>
+                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                    Location *
+                  </label>
+                  <input
+                    id="location"
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="City, State"
+                    required
+                  />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {children.map((child) => (
+                
+                <div>
+                  <label htmlFor="areasServed" className="block text-sm font-medium text-gray-700 mb-1">
+                    Areas (where you want a teacher)
+                  </label>
+                  <input
+                    id="areasServed"
+                    type="text"
+                    value={areasServed}
+                    onChange={(e) => setAreasServed(e.target.value)}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="Neighborhoods, localities"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Section: Teaching Requirements */}
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Teaching Requirements</h2>
+              
+              {/* Subjects */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Subjects Required *
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {selectedSubjects.map((subject) => (
                     <div
-                      key={child.id}
-                      className="bg-gray-50 rounded-md p-4 space-y-4"
+                      key={subject}
+                      className="flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
                     >
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-medium">Child Information</h3>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveChild(child.id)}
-                          className="inline-flex items-center text-sm text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Remove
-                        </button>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                          <label
-                            htmlFor={`child-name-${child.id}`}
-                            className="block text-sm font-medium text-gray-700 mb-1"
-                          >
-                            Name *
-                          </label>
-                          <input
-                            id={`child-name-${child.id}`}
-                            type="text"
-                            value={child.name}
-                            onChange={(e) =>
-                              handleChildChange(child.id, "name", e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            required
-                          />
-                        </div>
-                        
-                        <div>
-                          <label
-                            htmlFor={`child-age-${child.id}`}
-                            className="block text-sm font-medium text-gray-700 mb-1"
-                          >
-                            Age *
-                          </label>
-                          <input
-                            id={`child-age-${child.id}`}
-                            type="text"
-                            value={child.age}
-                            onChange={(e) =>
-                              handleChildChange(child.id, "age", e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="e.g. 12"
-                            required
-                          />
-                        </div>
-                        
-                        <div>
-                          <label
-                            htmlFor={`child-class-${child.id}`}
-                            className="block text-sm font-medium text-gray-700 mb-1"
-                          >
-                            Class *
-                          </label>
-                          <select
-                            id={`child-class-${child.id}`}
-                            value={child.currentClass}
-                            onChange={(e) =>
-                              handleChildChange(child.id, "currentClass", e.target.value)
-                            }
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            required
-                          >
-                            <option value="">Select class</option>
-                            {classOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        
-                        {child.currentClass === "Other" && (
-                          <div>
-                            <label
-                              htmlFor={`child-other-class-${child.id}`}
-                              className="block text-sm font-medium text-gray-700 mb-1"
-                            >
-                              Specify Class *
-                            </label>
-                            <input
-                              id={`child-other-class-${child.id}`}
-                              type="text"
-                              value={child.otherClass || ""}
-                              onChange={(e) =>
-                                handleChildChange(child.id, "otherClass", e.target.value)
-                              }
-                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                              required
-                            />
-                          </div>
-                        )}
-                      </div>
+                      {subject}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubject(subject)}
+                        className="ml-1 rounded-full p-1 hover:bg-blue-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <div className="relative flex-grow">
+                    <input
+                      type="text"
+                      value={subjectInput}
+                      onChange={(e) => {
+                        setSubjectInput(e.target.value);
+                        setShowSubjectDropdown(true);
+                      }}
+                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      placeholder="Add a subject your child needs to learn"
+                    />
+                    {showSubjectDropdown && subjectInput.length > 0 && (
+                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                        {filteredSubjects.length > 0 ? (
+                          filteredSubjects.map((subject) => (
+                            <div
+                              key={subject}
+                              onClick={() => handleSubjectSelect(subject)}
+                              className="relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-blue-100"
+                            >
+                              {subject}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-500">
+                            No matching subjects
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomSubject}
+                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Requirements */}
+              <div>
+                <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
+                  Additional Requirements
+                </label>
+                <textarea
+                  id="requirements"
+                  rows={4}
+                  value={requirements}
+                  onChange={(e) => setRequirements(e.target.value)}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  placeholder="Any specific requirements for the teacher, teaching style, schedule preferences, etc."
+                />
+              </div>
             </div>
             
             {/* Error/Success messages */}
@@ -508,21 +521,20 @@ function ParentEditProfilePage() {
             )}
             
             {/* Form Actions */}
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end space-x-4">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Cancel
               </button>
-              
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
               >
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>
