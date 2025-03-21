@@ -1,25 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
-import { UserPlus } from "lucide-react";
+import { db } from "@/lib/firebase";
+import AvatarInput from "@/app/components/shared/avatar-input";
 
 export default function TeacherOnboardingStep1() {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   
   const { user, userProfile } = useAuth();
   const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   
   // Check if user is authenticated and is a teacher
   useEffect(() => {
@@ -43,7 +41,7 @@ export default function TeacherOnboardingStep1() {
           setFullName(data.name || "");
           setPhoneNumber(data.phoneNumber || "");
           if (data.avatarUrl) {
-            setAvatarPreview(data.avatarUrl);
+            setAvatarUrl(data.avatarUrl);
           }
         }
         
@@ -56,30 +54,6 @@ export default function TeacherOnboardingStep1() {
     
     fetchTeacherData();
   }, [user, userProfile, router]);
-  
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    
-    if (files && files.length > 0) {
-      const file = files[0];
-      
-      // Validate file is an image
-      if (!file.type.startsWith("image/")) {
-        setError("Please upload an image file");
-        return;
-      }
-      
-      // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        setError("Image size should be less than 2MB");
-        return;
-      }
-      
-      setAvatarFile(file);
-      setAvatarPreview(URL.createObjectURL(file));
-      setError(null);
-    }
-  };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,15 +71,6 @@ export default function TeacherOnboardingStep1() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Upload avatar if provided
-      let avatarUrl = avatarPreview;
-      
-      if (avatarFile) {
-        const storageRef = ref(storage, `avatars/${user.uid}`);
-        await uploadBytes(storageRef, avatarFile);
-        avatarUrl = await getDownloadURL(storageRef);
-      }
       
       // Create teacher profile document in Firestore
       await setDoc(doc(db, "teachers", user.uid), {
@@ -146,39 +111,20 @@ export default function TeacherOnboardingStep1() {
       
       <div className="rounded-lg border bg-white p-6 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-gray-200">
-              {avatarPreview ? (
-                <Image
-                  src={avatarPreview}
-                  alt="Avatar preview"
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-400">
-                  <UserPlus size={36} />
-                </div>
-              )}
-            </div>
-            
-            <div>
-              <label
-                htmlFor="avatar"
-                className="inline-block cursor-pointer rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-              >
-                {avatarPreview ? "Change Photo" : "Upload Photo"}
-              </label>
-              <input
-                id="avatar"
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-              <p className="mt-1 text-xs text-gray-500">JPG, PNG, or GIF up to 2MB</p>
-            </div>
-          </div>
+          {/* Avatar Input Component */}
+          <AvatarInput 
+            userId={user?.uid || null}
+            initialAvatarUrl={avatarUrl}
+            onChange={(url) => {
+              setAvatarUrl(url);
+              if (url && url !== avatarUrl) {
+                console.log("Onboarding avatar updated:", url);
+              }
+            }}
+            variant="full"
+            size="md"
+            ref={avatarInputRef}
+          />
           
           <div className="space-y-4">
             <div>

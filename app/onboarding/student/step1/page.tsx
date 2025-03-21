@@ -1,25 +1,24 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { doc, setDoc, getDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
-import { User, Phone, Upload } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { Phone } from "lucide-react";
+import AvatarInput from "@/app/components/shared/avatar-input";
 
 export default function StudentOnboardingStep1() {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   
   const { user, userProfile } = useAuth();
   const router = useRouter();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   
   // Check if user is authenticated and is a student
   useEffect(() => {
@@ -50,7 +49,7 @@ export default function StudentOnboardingStep1() {
           }
           
           if (data.avatarUrl) {
-            setAvatarPreview(data.avatarUrl);
+            setAvatarUrl(data.avatarUrl);
           }
         }
         
@@ -64,33 +63,6 @@ export default function StudentOnboardingStep1() {
     fetchStudentData();
   }, [user, userProfile, router]);
   
-  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Validate file type is image
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file (JPEG, PNG, etc.)");
-      return;
-    }
-    
-    // Validate file size is less than 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image size should be less than 5MB");
-      return;
-    }
-    
-    setAvatarFile(file);
-    setError(null);
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -99,20 +71,8 @@ export default function StudentOnboardingStep1() {
       return;
     }
     
-    // Validate inputs
-    if (!fullName.trim()) {
-      setError("Full name is required");
-      return;
-    }
-    
-    if (!phoneNumber.trim()) {
-      setError("Phone number is required");
-      return;
-    }
-    
-    const phoneRegex = /^\d{10}$/;
-    if (!phoneRegex.test(phoneNumber)) {
-      setError("Please enter a valid 10-digit phone number");
+    if (!fullName) {
+      setError("Please provide your full name");
       return;
     }
     
@@ -120,34 +80,19 @@ export default function StudentOnboardingStep1() {
       setIsLoading(true);
       setError(null);
       
-      let avatarUrl = avatarPreview;
+      // Create/update student document
+      await setDoc(doc(db, "students", user.uid), {
+        fullName,
+        phoneNumber,
+        avatarUrl,
+        email: user.email,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
       
-      // Upload avatar if provided
-      if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/${user.uid}`);
-        await uploadBytes(avatarRef, avatarFile);
-        avatarUrl = await getDownloadURL(avatarRef);
-      }
-      
-      // Create or update student profile document in Firestore
-      await setDoc(
-        doc(db, "students", user.uid),
-        {
-          fullName,
-          phoneNumber,
-          avatarUrl,
-          email: user.email,
-          userId: user.uid,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-      
-      // Navigate to next step
+      // Navigate to step 2
       router.push("/onboarding/student/step2");
     } catch (error: any) {
-      console.error("Error in step 1:", error);
+      console.error("Error in student onboarding step 1:", error);
       setError(error.message || "An error occurred");
     } finally {
       setIsLoading(false);
@@ -164,127 +109,109 @@ export default function StudentOnboardingStep1() {
       </div>
     );
   }
-
+  
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold sm:text-3xl">Create Your Student Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Welcome to TeachersGallery!</h1>
         <p className="mt-2 text-gray-600">Step 1 of 3: Personal Information</p>
       </div>
       
-      <div className="rounded-lg border bg-white p-6 shadow-sm">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div>
-            <div className="flex items-center space-x-2 mb-6">
-              <User className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-semibold">Personal Details</h2>
-            </div>
-            
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
-                  Full Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                  placeholder="Enter your full name"
-                  required
-                />
+      <div className="overflow-hidden rounded-lg bg-white shadow">
+        <div className="px-4 py-5 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Personal Information Section */}
+            <div>
+              <div className="flex items-center space-x-2 mb-6">
+                <Phone className="h-6 w-6 text-blue-600" />
+                <h2 className="text-xl font-semibold">Personal Information</h2>
               </div>
               
-              <div>
-                <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
-                  Phone Number <span className="text-red-500">*</span>
-                </label>
-                <div className="relative mt-1 rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                  </div>
+              <div className="space-y-6">
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                    placeholder="Enter your full name"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+                    Phone Number (Optional)
+                  </label>
                   <input
                     id="phoneNumber"
                     type="tel"
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-                    className="block w-full rounded-md border border-gray-300 pl-10 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                    placeholder="10-digit number"
-                    required
-                    maxLength={10}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                    placeholder="+91 1234567890"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    This will only be shared with teachers when you approve
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Your phone number will be visible to teachers you connect with
-                </p>
+                
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={user?.email || ""}
+                    disabled
+                    className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 py-2 px-3 text-gray-500 shadow-sm sm:text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Email address cannot be changed
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex items-center space-x-2 mb-6">
-              <Upload className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-semibold">Profile Picture</h2>
             </div>
             
-            <div className="flex flex-col items-center justify-center sm:flex-row sm:items-start sm:space-x-6">
-              <div className="relative h-32 w-32 overflow-hidden rounded-full mb-4 sm:mb-0 flex items-center justify-center bg-gray-100">
-                {avatarPreview ? (
-                  <Image
-                    src={avatarPreview}
-                    alt="Avatar preview"
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <User className="h-16 w-16 text-gray-400" />
-                )}
+            {/* Profile Picture Section */}
+            <div>
+              <div className="flex items-center space-x-2 mb-6">
+                <h2 className="text-xl font-semibold">Profile Picture</h2>
               </div>
               
-              <div className="flex-1">
-                <label
-                  htmlFor="avatar"
-                  className="flex w-full cursor-pointer flex-col items-center rounded-md border border-dashed border-gray-300 px-4 py-6 text-center hover:bg-gray-50"
-                >
-                  <Upload className="mx-auto h-10 w-10 text-gray-400" />
-                  <span className="mt-2 block text-sm font-medium text-gray-700">
-                    Click to upload a profile picture
-                  </span>
-                  <span className="mt-1 block text-xs text-gray-500">
-                    JPG, PNG, GIF up to 5MB
-                  </span>
-                  <input
-                    id="avatar"
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                  />
-                </label>
-                <p className="mt-2 text-xs text-gray-500">
-                  A profile picture helps teachers recognize you and builds trust
-                </p>
+              {/* Avatar Input Component */}
+              <AvatarInput 
+                userId={user?.uid || null}
+                initialAvatarUrl={avatarUrl}
+                onChange={setAvatarUrl}
+                variant="full"
+                size="md"
+                ref={avatarInputRef}
+              />
+            </div>
+            
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <p className="text-sm text-red-700">{error}</p>
               </div>
+            )}
+            
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Saving..." : "Continue to Step 2"}
+              </button>
             </div>
-          </div>
-          
-          {error && (
-            <div className="rounded-md bg-red-50 p-4 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-          
-          <div className="flex justify-end pt-4">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="rounded-md bg-blue-600 px-6 py-2 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              {isLoading ? "Saving..." : "Continue to Step 2"}
-            </button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

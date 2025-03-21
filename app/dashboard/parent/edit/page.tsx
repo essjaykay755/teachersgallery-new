@@ -10,6 +10,7 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, Trash2, X } from "lucide-react";
+import AvatarInput from "@/app/components/shared/avatar-input";
 
 const classOptions = [
   "Pre-School", "Kindergarten",
@@ -43,8 +44,7 @@ function ParentEditProfilePage() {
   // Requirements
   const [requirements, setRequirements] = useState("");
   
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -99,7 +99,7 @@ function ParentEditProfilePage() {
           setRequirements(data.requirements || "");
           
           if (data.avatarUrl) {
-            setAvatarPreview(data.avatarUrl);
+            setAvatarUrl(data.avatarUrl);
           }
         }
       } catch (error) {
@@ -112,33 +112,6 @@ function ParentEditProfilePage() {
     
     fetchParentProfile();
   }, [user]);
-  
-  const handleAvatarChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Validate file type is image
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file (JPEG, PNG, etc.)");
-      return;
-    }
-    
-    // Validate file size is less than 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image size should be less than 5MB");
-      return;
-    }
-    
-    setAvatarFile(file);
-    setError(null);
-    
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
   
   const handleSubjectSelect = (subject: string) => {
     if (!selectedSubjects.includes(subject)) {
@@ -198,15 +171,6 @@ function ParentEditProfilePage() {
       setError(null);
       setSuccessMessage(null);
       
-      let avatarUrl = avatarPreview;
-      
-      // Upload new avatar if selected
-      if (avatarFile) {
-        const avatarRef = ref(storage, `avatars/${user.uid}`);
-        await uploadBytes(avatarRef, avatarFile);
-        avatarUrl = await getDownloadURL(avatarRef);
-      }
-      
       // Prepare parent data
       const parentData: any = {
         name: fullName,
@@ -226,9 +190,8 @@ function ParentEditProfilePage() {
         updatedAt: Date.now(),
       };
       
-      if (avatarUrl) {
-        parentData.avatarUrl = avatarUrl;
-      }
+      // Add avatarUrl to the parent data
+      parentData.avatarUrl = avatarUrl;
       
       // Update Firestore
       await updateDoc(doc(db, "parents", user.uid), parentData);
@@ -282,43 +245,18 @@ function ParentEditProfilePage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Profile Picture
               </label>
-              <div className="flex items-center space-x-6">
-                <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-gray-200">
-                  {avatarPreview ? (
-                    <Image
-                      src={avatarPreview}
-                      alt="Profile preview"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600">
-                      <User className="h-12 w-12" />
-                    </div>
-                  )}
-                </div>
-                
-                <div>
-                  <label
-                    htmlFor="avatar-upload"
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Change Photo
-                  </label>
-                  <input
-                    id="avatar-upload"
-                    name="avatar"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="sr-only"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    JPEG or PNG. Max 5MB.
-                  </p>
-                </div>
-              </div>
+              <AvatarInput 
+                userId={user?.uid || null}
+                initialAvatarUrl={avatarUrl}
+                onChange={(url) => {
+                  setAvatarUrl(url);
+                  if (url && url !== avatarUrl) {
+                    console.log("Avatar updated:", url);
+                  }
+                }}
+                variant="compact"
+                size="md"
+              />
             </div>
             
             {/* Section: Personal Information */}
