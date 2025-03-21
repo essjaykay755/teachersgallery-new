@@ -526,7 +526,7 @@ function ConversationPage() {
           collection(db, "conversations", conversationId, "messages"),
           {
             text: "Phone number requested",
-            senderId: "system", // Use system as sender ID
+            senderId: user.uid,
             createdAt: serverTimestamp(),
             isSystemMessage: true,
             systemMessageType: "phone_request",
@@ -598,7 +598,7 @@ function ConversationPage() {
           collection(db, "conversations", conversationId, "messages"),
           {
             text: statusText,
-            senderId: "system",
+            senderId: user.uid,
             createdAt: serverTimestamp(),
             isSystemMessage: true,
             systemMessageType: action === 'approved' ? "phone_approved" : "phone_rejected",

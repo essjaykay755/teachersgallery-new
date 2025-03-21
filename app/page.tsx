@@ -268,7 +268,9 @@ export default function Home() {
                     name: teacher.name || 'Unknown Teacher',
                     subject: teacher.subject || 'General',
                     location: teacher.location || 'Not specified',
-                    feesPerHour: typeof teacher.feesPerHour === 'number' ? teacher.feesPerHour : 0,
+                    feesPerHour: typeof teacher.feesPerHour === 'number' && teacher.feesPerHour > 0 
+                      ? teacher.feesPerHour 
+                      : teacher.feeRange?.min || 0,
                     experience: typeof teacher.experience === 'number' ? teacher.experience : 0,
                     teachingMode: teacher.teachingMode || 'Online',
                     educationLevels: Array.isArray(teacher.educationLevels) ? teacher.educationLevels : [],

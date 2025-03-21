@@ -1,7 +1,13 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, Auth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence, Firestore } from "firebase/firestore";
+import { 
+  getFirestore, 
+  connectFirestoreEmulator, 
+  Firestore, 
+  initializeFirestore,
+  FirestoreSettings
+} from "firebase/firestore";
 import { getStorage, connectStorageEmulator, FirebaseStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -33,22 +39,30 @@ try {
 
   // Initialize Firebase services
   auth = getAuth(firebaseApp);
+  
+  // Use Firestore with standard configuration - persistence will be enabled
+  // automatically in modern Firebase versions
   db = getFirestore(firebaseApp);
-  storage = getStorage(firebaseApp);
   
   // Enable offline persistence for Firestore (with error handling)
-  // Only in client-side environments
+  // Note: This is still used but will be deprecated in future versions
   if (typeof window !== 'undefined') {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Persistence not available in this browser');
-      } else {
-        console.error('Persistence error:', err);
-      }
+    // For future update: When Firebase SDK supports FirestoreSettings.cache 
+    // in this version, we can replace this with the new approach
+    import('firebase/firestore').then(({ enableIndexedDbPersistence }) => {
+      enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          console.warn('Persistence failed: Multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+          console.warn('Persistence not available in this browser');
+        } else {
+          console.error('Persistence error:', err);
+        }
+      });
     });
   }
+  
+  storage = getStorage(firebaseApp);
 } catch (error) {
   console.error("Error initializing Firebase:", error);
   // Initialize with default empty values to prevent undefined errors

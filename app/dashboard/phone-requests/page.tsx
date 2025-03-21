@@ -199,7 +199,7 @@ function PhoneRequestsPage() {
             collection(db, "conversations", conversationId, "messages"),
             {
               text: "Phone number request approved",
-              senderId: "system",
+              senderId: user.uid,
               createdAt: serverTimestamp(),
               isSystemMessage: true,
               systemMessageType: "phone_approved",
@@ -279,7 +279,7 @@ function PhoneRequestsPage() {
             collection(db, "conversations", conversationId, "messages"),
             {
               text: "Phone number request rejected",
-              senderId: "system",
+              senderId: user.uid,
               createdAt: serverTimestamp(),
               isSystemMessage: true,
               systemMessageType: "phone_rejected",

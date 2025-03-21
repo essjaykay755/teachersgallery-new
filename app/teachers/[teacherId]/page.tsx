@@ -33,6 +33,7 @@ interface TeacherData {
   methodology?: string;
   subjects?: string[];
   achievements?: string[];
+  feeRange?: { min: number; max: number };
 }
 
 interface TeachersRecord {
@@ -136,7 +137,8 @@ export default function TeacherProfile() {
             about: data.about || data.professionalSummary || 'No information provided',
             methodology: data.methodology || 'No information provided',
             subjects: subjects,
-            achievements: achievements
+            achievements: achievements,
+            feeRange: data.feeRange || { min: 0, max: 0 }
           });
         } else {
           console.error("Teacher not found in any collection");
@@ -159,7 +161,8 @@ export default function TeacherProfile() {
             about: 'Teacher profile not found.',
             methodology: '',
             subjects: [],
-            achievements: []
+            achievements: [],
+            feeRange: { min: 0, max: 0 }
           });
         }
       } catch (error) {
@@ -183,7 +186,8 @@ export default function TeacherProfile() {
           about: 'There was an error loading this teacher profile.',
           methodology: '',
           subjects: [],
-          achievements: []
+          achievements: [],
+          feeRange: { min: 0, max: 0 }
         });
       } finally {
         setIsLoading(false);
@@ -527,7 +531,13 @@ export default function TeacherProfile() {
 
               <div className="md:ml-auto mt-4 md:mt-0">
                 <div className="flex flex-col items-end">
-                  <p className="text-2xl font-bold text-blue-600">₹{typeof teacher.feesPerHour === 'number' ? teacher.feesPerHour : 0}/hr</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    ₹{
+                      typeof teacher.feesPerHour === 'number' && teacher.feesPerHour > 0 
+                        ? teacher.feesPerHour 
+                        : teacher.feeRange?.min || 0
+                    }/hr
+                  </p>
                   <p className="text-sm text-gray-500">per hour</p>
                 </div>
               </div>

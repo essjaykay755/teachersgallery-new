@@ -46,6 +46,25 @@ function TeacherDashboardPage() {
     router.push("/dashboard/teacher/edit");
   };
   
+  const toggleProfileVisibility = async () => {
+    if (!user) return;
+    
+    try {
+      const newVisibility = !teacherProfile.isVisible;
+      await updateDoc(doc(db, "teachers", user.uid), {
+        isVisible: newVisibility
+      });
+      
+      setTeacherProfile((prev: any) => ({
+        ...prev,
+        isVisible: newVisibility
+      }));
+    } catch (error) {
+      console.error("Error updating profile visibility:", error);
+      alert("Failed to update profile visibility. Please try again.");
+    }
+  };
+  
   return (
     <DashboardShell>
       <div className="space-y-6">
@@ -125,7 +144,7 @@ function TeacherDashboardPage() {
                         type="checkbox" 
                         className="sr-only peer"
                         checked={teacherProfile.isVisible}
-                        readOnly
+                        onChange={toggleProfileVisibility}
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>

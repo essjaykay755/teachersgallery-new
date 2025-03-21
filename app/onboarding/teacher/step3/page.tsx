@@ -95,12 +95,20 @@ export default function TeacherOnboardingStep3() {
       setIsLoading(true);
       setError(null);
       
+      // Convert fee to number to ensure it's stored properly
+      const feesValue = parseInt(feeRange) || 0;
+      
       // Update teacher profile document in Firestore with step 3 data
       await setDoc(
         doc(db, "teachers", user.uid),
         {
           teachingModes: teachingMode,
-          feesPerHour: parseInt(feeRange) || 0,
+          feesPerHour: feesValue,
+          // Also add feeRange for compatibility with older code
+          feeRange: {
+            min: feesValue,
+            max: feesValue
+          },
           location,
           areasServed,
           isVisible,

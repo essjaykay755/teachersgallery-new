@@ -203,7 +203,7 @@ function TeacherEditProfilePage() {
         teachingMode: string[];
         teachingModes?: string[];
         feeRange: { min: number; max: number };
-        feesPerHour?: number;
+        feesPerHour: number;
         isVisible: boolean;
         updatedAt: number;
         avatarUrl?: string;
@@ -223,7 +223,7 @@ function TeacherEditProfilePage() {
           min: parseInt(feeRange.min) || 0,
           max: parseInt(feeRange.max) || 0
         },
-        feesPerHour: parseInt(feeRange.min) || 0, // Add for newer format
+        feesPerHour: parseInt(feeRange.min) || 0, // Make this required
         isVisible,
         updatedAt: Date.now(),
       };

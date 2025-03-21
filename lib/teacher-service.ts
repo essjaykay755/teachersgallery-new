@@ -7,12 +7,17 @@ export interface Teacher {
   subject: string;
   location: string;
   feesPerHour: number;
+  feeRange?: {
+    min: number;
+    max: number;
+  };
   experience: number;
   teachingMode: string;
   educationLevels: string[];
   rating: number;
   isVerified: boolean;
   isFeatured: boolean;
+  isVisible: boolean;
   avatarUrl: string;
   featuredExpiry?: Date;
 }
@@ -66,12 +71,14 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     subject: getSubject(),
     location: getLocation(),
     feesPerHour: Number(data.feesPerHour) || 0,
+    feeRange: data.feeRange || null,
     experience: Number(data.experience) || Number(data.yearsOfExperience) || 0,
     teachingMode: data.teachingMode || data.mode || 'Online',
     educationLevels: getEducationLevels() || [],
     rating: Number(data.rating) || 4.8, // Default rating until rating system is implemented
     isVerified: !!data.isVerified,
     isFeatured: isCurrentlyFeatured,
+    isVisible: data.isVisible !== false, // Default to true unless explicitly set to false
     avatarUrl: data.avatarUrl || data.photoURL || '',
     featuredExpiry: featuredExpiry,
   };
@@ -119,6 +126,10 @@ export const getTeachers = async (): Promise<Teacher[]> => {
       .filter(({ data }) => {
         // For the teachers collection, we don't need to check userType since all docs are teachers
         if (data.onboardingCompleted || data.name || data.subjects || data.teachingMode) {
+          // Check if isVisible is explicitly set to false
+          if (data.isVisible === false) {
+            return false;
+          }
           return true;
         }
         
@@ -135,6 +146,11 @@ export const getTeachers = async (): Promise<Teacher[]> => {
           data.teachingMode || 
           data.feesPerHour || 
           data.qualifications;
+          
+        // Check visibility for teachers from other collections too  
+        if (data.isVisible === false) {
+          return false;
+        }
           
         return isTeacher || hasTeacherFields;
       })
