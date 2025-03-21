@@ -261,23 +261,41 @@ export default function Home() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-4">
-                {visibleTeachers.map((teacher) => (
-                  <TeacherCard
-                    key={teacher.id}
-                    id={teacher.id}
-                    name={teacher.name}
-                    subject={teacher.subject}
-                    location={teacher.location}
-                    feesPerHour={teacher.feesPerHour}
-                    experience={teacher.experience}
-                    teachingMode={teacher.teachingMode}
-                    educationLevels={teacher.educationLevels}
-                    rating={teacher.rating}
-                    isVerified={teacher.isVerified}
-                    isFeatured={teacher.isFeatured}
-                    avatarUrl={teacher.avatarUrl}
-                  />
-                ))}
+                {visibleTeachers.map((teacher) => {
+                  // Ensure all required props are defined with fallbacks
+                  const safeTeacher = {
+                    id: teacher.id || 'unknown',
+                    name: teacher.name || 'Unknown Teacher',
+                    subject: teacher.subject || 'General',
+                    location: teacher.location || 'Not specified',
+                    feesPerHour: typeof teacher.feesPerHour === 'number' ? teacher.feesPerHour : 0,
+                    experience: typeof teacher.experience === 'number' ? teacher.experience : 0,
+                    teachingMode: teacher.teachingMode || 'Online',
+                    educationLevels: Array.isArray(teacher.educationLevels) ? teacher.educationLevels : [],
+                    rating: typeof teacher.rating === 'number' ? teacher.rating : 4.5,
+                    isVerified: !!teacher.isVerified,
+                    isFeatured: !!teacher.isFeatured,
+                    avatarUrl: teacher.avatarUrl || ''
+                  };
+                  
+                  return (
+                    <TeacherCard
+                      key={safeTeacher.id}
+                      id={safeTeacher.id}
+                      name={safeTeacher.name}
+                      subject={safeTeacher.subject}
+                      location={safeTeacher.location}
+                      feesPerHour={safeTeacher.feesPerHour}
+                      experience={safeTeacher.experience}
+                      teachingMode={safeTeacher.teachingMode}
+                      educationLevels={safeTeacher.educationLevels}
+                      rating={safeTeacher.rating}
+                      isVerified={safeTeacher.isVerified}
+                      isFeatured={safeTeacher.isFeatured}
+                      avatarUrl={safeTeacher.avatarUrl}
+                    />
+                  );
+                })}
               </div>
             )}
             

@@ -68,7 +68,7 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     feesPerHour: Number(data.feesPerHour) || 0,
     experience: Number(data.experience) || Number(data.yearsOfExperience) || 0,
     teachingMode: data.teachingMode || data.mode || 'Online',
-    educationLevels: getEducationLevels(),
+    educationLevels: getEducationLevels() || [],
     rating: Number(data.rating) || 4.8, // Default rating until rating system is implemented
     isVerified: !!data.isVerified,
     isFeatured: isCurrentlyFeatured,
@@ -142,11 +142,23 @@ export const getTeachers = async (): Promise<Teacher[]> => {
     
     console.log(`Found ${teacherDocs.length} teacher documents after filtering`);
     
-    const teachers = teacherDocs.map(teacherConverter);
-    console.log('Processed teacher objects:', teachers);
+    // Convert and validate each teacher document
+    let validTeachers: Teacher[] = [];
+    
+    for (const doc of teacherDocs) {
+      try {
+        const teacher = teacherConverter(doc);
+        validTeachers.push(teacher);
+      } catch (err) {
+        console.error(`Error converting teacher document ${doc.id}:`, err);
+        // Skip the problematic document and continue
+      }
+    }
+    
+    console.log(`Successfully converted ${validTeachers.length} teacher documents`);
     
     // Sort featured teachers first, then by name
-    return teachers.sort((a, b) => {
+    return validTeachers.sort((a, b) => {
       if (a.isFeatured && !b.isFeatured) return -1;
       if (!a.isFeatured && b.isFeatured) return 1;
       return a.name.localeCompare(b.name);

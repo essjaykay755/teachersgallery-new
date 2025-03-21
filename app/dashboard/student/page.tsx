@@ -6,7 +6,7 @@ import Image from "next/image";
 import { DashboardShell } from "@/app/components/layout/dashboard-shell";
 import withAuth from "@/lib/withAuth";
 import { useAuth } from "@/lib/auth-context";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
 import { MessageSquare, School, Edit, ChevronRight, Phone } from "lucide-react";
@@ -14,6 +14,7 @@ import { MessageSquare, School, Edit, ChevronRight, Phone } from "lucide-react";
 function StudentDashboardPage() {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [phoneRequestsCount, setPhoneRequestsCount] = useState(0);
   const { user } = useAuth();
   const router = useRouter();
   
@@ -35,6 +36,30 @@ function StudentDashboardPage() {
     };
     
     fetchStudentProfile();
+  }, [user]);
+  
+  useEffect(() => {
+    const fetchPhoneRequests = async () => {
+      if (!user) return;
+      
+      try {
+        const phoneRequestsQuery = query(
+          collection(db, "phoneNumberRequests"),
+          where("requesterId", "==", user.uid)
+        );
+        
+        const requestsSnapshot = await getDocs(phoneRequestsQuery);
+        const pendingRequests = requestsSnapshot.docs.filter(
+          doc => doc.data().status === "pending"
+        ).length;
+        
+        setPhoneRequestsCount(pendingRequests);
+      } catch (error) {
+        console.error("Error fetching phone requests:", error);
+      }
+    };
+    
+    fetchPhoneRequests();
   }, [user]);
   
   const handleEditProfile = () => {
@@ -128,7 +153,7 @@ function StudentDashboardPage() {
                   <Phone className="h-4 w-4 text-gray-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">0</div>
+                  <div className="text-2xl font-bold">{phoneRequestsCount}</div>
                   <p className="text-xs text-gray-500">Pending requests</p>
                   <button 
                     onClick={() => router.push("/dashboard/phone-requests")}

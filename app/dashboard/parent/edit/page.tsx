@@ -50,7 +50,7 @@ function ParentEditProfilePage() {
       if (!user) return;
       
       try {
-        const parentDoc = await getDoc(doc(db, "profiles", "parents", user.uid));
+        const parentDoc = await getDoc(doc(db, "parents", user.uid));
         
         if (parentDoc.exists()) {
           const data = parentDoc.data();
@@ -214,7 +214,7 @@ function ParentEditProfilePage() {
       }
       
       // Update Firestore
-      await updateDoc(doc(db, "profiles", "parents", user.uid), parentData);
+      await updateDoc(doc(db, "parents", user.uid), parentData);
       
       setSuccessMessage("Profile updated successfully");
       

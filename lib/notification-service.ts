@@ -87,18 +87,36 @@ export async function createPhoneRequestNotification(
     let requesterType = "";
     
     if (requesterDoc.exists()) {
-      requesterType = requesterDoc.data().userType;
+      requesterType = requesterDoc.data().userType || "";
     }
     
-    // Get requester profile
-    const profilePath = `profiles/${requesterType}s`;
-    const requesterProfileDoc = await getDoc(doc(db, profilePath, requesterId));
+    // If requesterType is empty, try to guess from the status context
+    if (!requesterType) {
+      // If status is 'pending', then the requester is likely a student or parent
+      // If status is 'approved' or 'rejected', the requester is likely receiving notification from a teacher
+      requesterType = status === 'pending' ? 'student' : 'teacher';
+    }
+    
+    // Normalize type to ensure collection name is correct
+    const userCollection = requesterType === 'teacher' ? 'teachers' : 
+                          requesterType === 'parent' ? 'parents' : 'students';
+    
+    // Get requester profile from the correct collection
+    const requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
     
     let requesterName = "Someone";
     if (requesterProfileDoc.exists()) {
       requesterName = requesterProfileDoc.data().name || 
                      requesterProfileDoc.data().fullName || 
                      "Someone";
+    } else {
+      // If no profile found in the specific collection, try looking in general profiles
+      const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
+      if (fallbackProfileDoc.exists()) {
+        requesterName = fallbackProfileDoc.data().name || 
+                       fallbackProfileDoc.data().fullName || 
+                       "Someone";
+      }
     }
     
     let title = "";
@@ -128,8 +146,14 @@ export async function createPhoneRequestNotification(
           requesterId
         }
       );
+      
+      console.log(`Successfully created notification for ${recipientId} about phone request ${requestId}`);
     }
   } catch (error) {
     console.error("Error creating phone request notification:", error);
+    // Re-throw error only in development to help with debugging
+    if (process.env.NODE_ENV === 'development') {
+      throw error;
+    }
   }
 } 

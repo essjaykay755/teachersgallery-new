@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Phone, Check, X, Loader2 } from 'lucide-react';
 
 type RequestStatus = 'not_requested' | 'pending' | 'approved' | 'rejected';
@@ -39,6 +39,12 @@ export function PhoneRequest({
       setIsRequesting(false);
     }
   };
+
+  useEffect(() => {
+    if (status === 'approved') {
+      console.log("PhoneRequest status is approved, phoneNumber:", phoneNumber);
+    }
+  }, [status, phoneNumber]);
 
   return (
     <div className={`bg-white rounded-lg shadow-sm p-4 ${className}`}>
@@ -80,7 +86,7 @@ export function PhoneRequest({
         </div>
       )}
       
-      {status === 'approved' && phoneNumber && (
+      {status === 'approved' && phoneNumber && phoneNumber !== "Contact teacher for details" && (
         <div className="text-center p-4 border border-green-200 bg-green-50 rounded-md">
           <p className="text-green-700 font-medium mb-1">
             <Check className="h-5 w-5 inline-block mr-1" />
@@ -92,6 +98,21 @@ export function PhoneRequest({
           <div className="bg-white p-3 rounded border border-green-200">
             <p className="font-medium text-green-900">{phoneNumber}</p>
           </div>
+        </div>
+      )}
+      
+      {status === 'approved' && (!phoneNumber || phoneNumber === "Contact teacher for details") && (
+        <div className="text-center p-4 border border-amber-200 bg-amber-50 rounded-md">
+          <p className="text-amber-700 font-medium mb-1">
+            <Check className="h-5 w-5 inline-block mr-1" />
+            Request Approved
+          </p>
+          <p className="text-sm text-amber-600 mb-1">
+            {teacherName} has approved your request, but no phone number is available.
+          </p>
+          <p className="text-sm text-amber-600">
+            Please contact them through messages instead.
+          </p>
         </div>
       )}
       

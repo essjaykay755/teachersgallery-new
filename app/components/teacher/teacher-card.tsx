@@ -3,6 +3,7 @@ import { MapPin, Star, Check } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/app/components/shared/card";
 import { cn } from "@/lib/utils";
+import { useMemo } from "react";
 
 interface TeacherCardProps {
   id: string;
@@ -20,47 +21,36 @@ interface TeacherCardProps {
   className?: string;
 }
 
-export function TeacherCard({
-  id,
-  name,
-  avatarUrl,
-  subject,
-  location,
-  feesPerHour,
-  experience,
-  teachingMode,
-  educationLevels,
-  rating,
-  isVerified = false,
-  isFeatured = false,
-  className,
-}: TeacherCardProps) {
-  // Get initials for avatar fallback
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
+export function TeacherCard(props: TeacherCardProps) {
+  // Use defensive destructuring to ensure every prop has a default value
+  const {
+    id = "unknown",
+    name = "Unknown Teacher",
+    avatarUrl = "",
+    subject = "General",
+    location = "Not specified",
+    feesPerHour = 0,
+    experience = 0,
+    teachingMode = "Online",
+    educationLevels = [],
+    rating = 4.5,
+    isVerified = false,
+    isFeatured = false,
+    className = "",
+  } = props;
 
-  const renderStars = () => {
-    return (
-      <div className="flex items-center">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={cn(
-              "h-4 w-4",
-              i < Math.floor(rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-            )}
-          />
-        ))}
-        <span className="ml-1 text-sm text-gray-600">{rating.toFixed(1)}</span>
-      </div>
-    );
-  };
+  // Get initials for avatar fallback
+  const initials = useMemo(() => {
+    if (!name) return "UT";
+    return name
+      .split(" ")
+      .map((n) => n[0] || "")
+      .join("")
+      .toUpperCase().substring(0, 2);
+  }, [name]);
 
   // Define color for teaching mode badge
-  const getModeColor = (mode: string) => {
+  const getModeColor = (mode: string = "") => {
     switch (mode) {
       case "Online":
         return "bg-green-100 text-green-800";
@@ -71,6 +61,32 @@ export function TeacherCard({
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  // Safe version of educationLevels
+  const safeEducationLevels = useMemo(() => {
+    if (!educationLevels) return [];
+    if (!Array.isArray(educationLevels)) return [];
+    return educationLevels.filter(level => typeof level === 'string');
+  }, [educationLevels]);
+
+  // Safe rendering of stars
+  const renderStars = () => {
+    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 4.5;
+    return (
+      <div className="flex items-center">
+        {[...Array(5)].map((_, i) => (
+          <Star
+            key={i}
+            className={cn(
+              "h-4 w-4",
+              i < Math.floor(safeRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+            )}
+          />
+        ))}
+        <span className="ml-1 text-sm text-gray-600">{safeRating.toFixed(1)}</span>
+      </div>
+    );
   };
 
   return (
@@ -117,16 +133,18 @@ export function TeacherCard({
             {renderStars()}
           </div>
           
-          <div className="flex flex-wrap gap-1 mb-1">
-            {educationLevels.map((level) => (
-              <span
-                key={level}
-                className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md text-xs"
-              >
-                {level}
-              </span>
-            ))}
-          </div>
+          {safeEducationLevels.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-1">
+              {safeEducationLevels.map((level, index) => (
+                <span
+                  key={`${level}-${index}`}
+                  className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md text-xs"
+                >
+                  {level}
+                </span>
+              ))}
+            </div>
+          )}
         </CardContent>
         <CardFooter className="border-t py-2 bg-gray-50">
           <div className="w-full text-right">

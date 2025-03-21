@@ -66,9 +66,11 @@ export function NotificationDropdown() {
       if (notification.type === 'message' && notification.data?.conversationId) {
         router.push(`/dashboard/messages/${notification.data.conversationId}`);
       } else if (notification.type === 'phone_request') {
+        // Always redirect to phone-requests page for any phone request notification
         router.push('/dashboard/phone-requests');
       }
       
+      // Close the dropdown after clicking
       setIsOpen(false);
     } catch (err) {
       console.error("Error handling notification click:", err);

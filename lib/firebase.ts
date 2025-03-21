@@ -1,8 +1,8 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { getAuth, connectAuthEmulator, Auth } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator, enableIndexedDbPersistence, Firestore } from "firebase/firestore";
+import { getStorage, connectStorageEmulator, FirebaseStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -16,17 +16,50 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
-let firebaseApp;
-if (!getApps().length) {
-  firebaseApp = initializeApp(firebaseConfig);
-} else {
-  firebaseApp = getApps()[0]; // if already initialized, use that one
-}
+// Initialize Firebase with error handling
+let firebaseApp: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let storage: FirebaseStorage;
 
-// Initialize Firebase services
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
+try {
+  if (!getApps().length) {
+    console.log("Initializing Firebase app...");
+    firebaseApp = initializeApp(firebaseConfig);
+  } else {
+    console.log("Firebase app already initialized");
+    firebaseApp = getApps()[0]; // if already initialized, use that one
+  }
+
+  // Initialize Firebase services
+  auth = getAuth(firebaseApp);
+  db = getFirestore(firebaseApp);
+  storage = getStorage(firebaseApp);
+  
+  // Enable offline persistence for Firestore (with error handling)
+  // Only in client-side environments
+  if (typeof window !== 'undefined') {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('Persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Persistence not available in this browser');
+      } else {
+        console.error('Persistence error:', err);
+      }
+    });
+  }
+} catch (error) {
+  console.error("Error initializing Firebase:", error);
+  // Initialize with default empty values to prevent undefined errors
+  // @ts-ignore - Fallback initialization
+  firebaseApp = {} as FirebaseApp;
+  // @ts-ignore - Fallback initialization
+  auth = {} as Auth;
+  // @ts-ignore - Fallback initialization
+  db = {} as Firestore;
+  // @ts-ignore - Fallback initialization
+  storage = {} as FirebaseStorage;
+}
 
 export { auth, db, storage }; 

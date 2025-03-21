@@ -10,7 +10,8 @@ import {
   doc, 
   updateDoc,
   Timestamp,
-  getDocs
+  getDocs,
+  Firestore
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuth } from "./auth-context";
@@ -92,47 +93,68 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   
   // Subscribe to user's notifications
   useEffect(() => {
+    let mounted = true;
+    let unsubscribeFunc: () => void = () => {};
+    
+    // Only set up listener if we have a user
     if (!user) {
       setNotifications([]);
-      return;
-    }
-    
-    try {
-      const notificationsQuery = query(
-        collection(db, "notifications"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      );
-      
-      const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-        try {
-          const notificationsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as Notification[];
-          
-          setNotifications(notificationsData);
-        } catch (error) {
-          console.error("Error processing notification data:", error);
-          setNotifications([]);
-        }
-      }, (error) => {
-        console.error("Error subscribing to notifications:", error);
-        // Don't crash the app for notification errors
-        setNotifications([]);
-      });
-      
-      return () => {
-        try {
-          unsubscribe();
-        } catch (error) {
-          console.error("Error unsubscribing from notifications:", error);
-        }
-      };
-    } catch (error) {
-      console.error("Error setting up notifications listener:", error);
       return () => {};
     }
+    
+    // Add small delay to ensure auth is fully initialized
+    const timeoutId = setTimeout(() => {
+      if (!mounted) return;
+      
+      try {
+        // Use explicit type for the query to avoid type issues
+        const notificationsQuery = query(
+          collection(db, "notifications"),
+          where("userId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+        
+        // Add explicit error handling for the query
+        unsubscribeFunc = onSnapshot(
+          notificationsQuery, 
+          {
+            next: (snapshot) => {
+              try {
+                if (!mounted) return;
+                
+                const notificationsData = snapshot.docs.map(doc => ({
+                  id: doc.id,
+                  ...doc.data()
+                })) as Notification[];
+                
+                setNotifications(notificationsData);
+              } catch (error) {
+                console.error("Error processing notification data:", error);
+                setNotifications([]);
+              }
+            },
+            error: (error) => {
+              console.error("Error subscribing to notifications:", error);
+              // Don't crash the app for notification errors
+              setNotifications([]);
+            }
+          }
+        );
+      } catch (error) {
+        console.error("Error setting up notifications listener:", error);
+      }
+    }, 1000); // Add 1 second delay
+    
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      
+      try {
+        unsubscribeFunc();
+      } catch (error) {
+        console.error("Error unsubscribing from notifications:", error);
+      }
+    };
   }, [user]);
   
   const value = {

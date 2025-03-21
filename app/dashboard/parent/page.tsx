@@ -22,7 +22,7 @@ function ParentDashboardPage() {
       if (!user) return;
       
       try {
-        const parentDoc = await getDoc(doc(db, "profiles", "parents", user.uid));
+        const parentDoc = await getDoc(doc(db, "parents", user.uid));
         
         if (parentDoc.exists()) {
           setParentProfile(parentDoc.data());

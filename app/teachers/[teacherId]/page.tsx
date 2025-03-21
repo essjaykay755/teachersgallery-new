@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/ava
 import { MessageForm } from "@/app/components/shared/message-form";
 import { PhoneRequest } from "@/app/components/shared/phone-request";
 import { useAuth } from '@/lib/auth-context';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { createPhoneRequestNotification } from '@/lib/notification-service';
@@ -63,40 +63,128 @@ export default function TeacherProfile() {
     
     const fetchTeacherData = async () => {
       try {
-        // Use the correct path structure with a collection for teachers
-        const teacherDoc = await getDoc(doc(db, 'teachers', teacherId));
+        setIsLoading(true);
+        
+        // Try main teachers collection first
+        let teacherDoc = await getDoc(doc(db, 'teachers', teacherId));
+        
+        // If not found, try users collection
+        if (!teacherDoc.exists()) {
+          console.log(`Teacher not found in 'teachers' collection, trying 'users' collection...`);
+          teacherDoc = await getDoc(doc(db, 'users', teacherId));
+        }
+        
+        // If still not found, try profiles collection
+        if (!teacherDoc.exists()) {
+          console.log(`Teacher not found in 'users' collection, trying 'profiles' collection...`);
+          teacherDoc = await getDoc(doc(db, 'profiles', teacherId));
+        }
         
         if (teacherDoc.exists()) {
           const data = teacherDoc.data();
           console.log("Raw teacher data:", data);
           
-          // Set default values for fields that might be missing
+          // Handle subject data safely
+          let subjects: string[] = [];
+          if (Array.isArray(data.subjects)) {
+            subjects = data.subjects;
+          } else if (typeof data.subject === 'string') {
+            subjects = [data.subject];
+          } else if (typeof data.primarySubject === 'string') {
+            subjects = [data.primarySubject];
+          } else {
+            subjects = ['General'];
+          }
+          
+          // Handle education levels safely
+          let educationLevels: string[] = [];
+          if (Array.isArray(data.educationLevels)) {
+            educationLevels = data.educationLevels;
+          } else if (Array.isArray(data.qualifications)) {
+            educationLevels = data.qualifications;
+          } else if (Array.isArray(data.levels)) {
+            educationLevels = data.levels;
+          } else {
+            educationLevels = [];
+          }
+          
+          // Handle achievements safely
+          let achievements: string[] = [];
+          if (Array.isArray(data.achievements)) {
+            achievements = data.achievements.filter(item => typeof item === 'string');
+          } else {
+            achievements = [];
+          }
+          
+          // Set teacher data with safe defaults
           setTeacher({
             id: teacherId,
-            name: data.name || 'Unknown Teacher',
-            subject: data.subject || (data.subjects && data.subjects.length ? data.subjects[0] : 'General'),
-            location: data.location || 'Location not specified',
-            feesPerHour: data.feesPerHour || 0,
-            experience: data.experience || data.yearsOfExperience || 0,
+            name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
+            subject: subjects[0] || 'General',
+            location: data.location || data.city || 'Location not specified',
+            feesPerHour: Number(data.feesPerHour) || 0,
+            experience: Number(data.experience) || Number(data.yearsOfExperience) || 0,
             teachingMode: data.teachingMode || data.teachingModes?.[0] || 'Online',
-            educationLevels: data.educationLevels || data.qualifications || [],
-            rating: data.rating || 4.5,
-            reviews: data.reviews || 0,
-            students: data.students || 0,
+            educationLevels: educationLevels,
+            rating: Number(data.rating) || 4.5,
+            reviews: Number(data.reviews) || 0,
+            students: Number(data.students) || 0,
             isVerified: !!data.isVerified,
             isFeatured: !!data.isFeatured,
-            avatarUrl: data.avatarUrl || '',
+            avatarUrl: data.avatarUrl || data.photoURL || '',
             about: data.about || data.professionalSummary || 'No information provided',
             methodology: data.methodology || 'No information provided',
-            subjects: Array.isArray(data.subjects) ? data.subjects : [data.subject || 'General'],
-            achievements: Array.isArray(data.achievements) ? data.achievements : []
+            subjects: subjects,
+            achievements: achievements
           });
         } else {
-          console.error("Teacher not found");
+          console.error("Teacher not found in any collection");
+          // Set default empty teacher to avoid null references
+          setTeacher({
+            id: teacherId,
+            name: 'Teacher Not Found',
+            subject: 'N/A',
+            location: 'N/A',
+            feesPerHour: 0,
+            experience: 0,
+            teachingMode: 'N/A',
+            educationLevels: [],
+            rating: 0,
+            reviews: 0,
+            students: 0,
+            isVerified: false,
+            isFeatured: false,
+            avatarUrl: '',
+            about: 'Teacher profile not found.',
+            methodology: '',
+            subjects: [],
+            achievements: []
+          });
         }
-        setIsLoading(false);
       } catch (error) {
         console.error("Error fetching teacher data:", error);
+        // Set default empty teacher on error
+        setTeacher({
+          id: teacherId,
+          name: 'Error Loading Profile',
+          subject: 'N/A',
+          location: 'N/A',
+          feesPerHour: 0,
+          experience: 0,
+          teachingMode: 'N/A',
+          educationLevels: [],
+          rating: 0,
+          reviews: 0,
+          students: 0,
+          isVerified: false,
+          isFeatured: false,
+          avatarUrl: '',
+          about: 'There was an error loading this teacher profile.',
+          methodology: '',
+          subjects: [],
+          achievements: []
+        });
+      } finally {
         setIsLoading(false);
       }
     };
@@ -115,6 +203,8 @@ export default function TeacherProfile() {
     if (!user || !userProfile || userProfile.userType === 'teacher') return;
     
     try {
+      console.log(`Checking phone request status for teacher ${teacherId} by user ${user.uid}`);
+      
       const phoneRequestsQuery = query(
         collection(db, "phoneNumberRequests"),
         where("requesterId", "==", user.uid),
@@ -124,12 +214,55 @@ export default function TeacherProfile() {
       const querySnapshot = await getDocs(phoneRequestsQuery);
       
       if (!querySnapshot.empty) {
-        const requestData = querySnapshot.docs[0].data();
+        const requestDoc = querySnapshot.docs[0];
+        const requestId = requestDoc.id;
+        const requestData = requestDoc.data();
+        
+        console.log(`Found request ${requestId} with status: ${requestData.status}`);
         setPhoneRequestStatus(requestData.status);
         
         if (requestData.status === 'approved') {
-          setPhoneNumber(requestData.phoneNumber || undefined);
+          console.log("Request approved, checking for phone number:", requestData);
+          
+          if (requestData.phoneNumber && requestData.phoneNumber.trim() !== "") {
+            setPhoneNumber(requestData.phoneNumber);
+            console.log("Phone number retrieved from request:", requestData.phoneNumber);
+          } else {
+            console.warn("Request approved but no phone number available in request");
+            
+            // Try to fetch the teacher's phone number directly
+            console.log(`Fetching teacher ${teacherId} profile to get phone number`);
+            const teacherDoc = await getDoc(doc(db, "teachers", teacherId));
+            
+            if (teacherDoc.exists()) {
+              const teacherData = teacherDoc.data();
+              console.log("Teacher profile data:", teacherData);
+              
+              if (teacherData.phoneNumber && teacherData.phoneNumber.trim() !== "") {
+                const teacherPhoneNumber = teacherData.phoneNumber;
+                console.log("Retrieved teacher phone from profile:", teacherPhoneNumber);
+                setPhoneNumber(teacherPhoneNumber);
+                
+                // Update the request with the phone number
+                console.log(`Updating request ${requestId} with phone number:`, teacherPhoneNumber);
+                
+                await updateDoc(doc(db, "phoneNumberRequests", requestId), {
+                  phoneNumber: teacherPhoneNumber
+                });
+                
+                console.log(`Request ${requestId} updated with teacher's phone number`);
+              } else {
+                console.warn("No phone number found in teacher profile");
+                setPhoneNumber("Contact teacher for details");
+              }
+            } else {
+              console.warn(`Teacher profile ${teacherId} not found`);
+              setPhoneNumber("Contact teacher for details");
+            }
+          }
         }
+      } else {
+        console.log("No phone request found for this teacher");
       }
     } catch (error) {
       console.error("Error checking phone request status:", error);
@@ -164,30 +297,42 @@ export default function TeacherProfile() {
       throw new Error('You must be logged in to request a phone number');
     }
     
-    const requestId = `${user.uid}_${teacherId}`;
-    const timestamp = new Date().toISOString();
-    
-    // Create a new phone number request
-    await setDoc(doc(db, 'phoneNumberRequests', requestId), {
-      id: requestId,
-      requesterId: user.uid,
-      requesterName: user.displayName || 'Anonymous',
-      teacherId: teacherId,
-      teacherName: teacher.name,
-      status: 'pending',
-      timestamp,
-      phoneNumber: null
-    });
-    
-    // Create notification for the teacher
-    await createPhoneRequestNotification(
-      teacherId,
-      user.uid,
-      requestId,
-      "pending"
-    );
-    
-    return;
+    try {
+      const requestId = `${user.uid}_${teacherId}`;
+      const timestamp = new Date().toISOString();
+      
+      // Create a new phone number request
+      await setDoc(doc(db, 'phoneNumberRequests', requestId), {
+        id: requestId,
+        requesterId: user.uid,
+        requesterType: userProfile?.userType || 'student',
+        teacherId: teacherId,
+        teacherName: teacher.name,
+        status: 'pending',
+        timestamp,
+        phoneNumber: null
+      });
+      
+      // Create notification for the teacher with error handling
+      try {
+        await createPhoneRequestNotification(
+          teacherId,
+          user.uid,
+          requestId,
+          "pending"
+        );
+        console.log("Phone request notification created successfully");
+      } catch (notifError) {
+        console.error("Error creating phone request notification:", notifError);
+        // Don't throw, continue with the process even if notification fails
+      }
+      
+      setPhoneRequestStatus('pending');
+      return;
+    } catch (error) {
+      console.error("Error requesting phone number:", error);
+      throw error;
+    }
   };
   
   if (isLoading) {
@@ -211,14 +356,19 @@ export default function TeacherProfile() {
   }
 
   // Get initials for avatar fallback
-  const initials = teacher.name
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .toUpperCase();
+  const initials = typeof teacher.name === 'string' 
+    ? teacher.name
+        .split(" ")
+        .map((n: string) => n && n[0] || '')
+        .join("")
+        .toUpperCase().substring(0, 2) || "UT"
+    : "UT";
 
   const renderStars = () => {
-    const rating = teacher.rating || 4.5;
+    const rating = typeof teacher.rating === 'number' && !isNaN(teacher.rating) 
+      ? teacher.rating 
+      : 4.5;
+      
     return (
       <div className="flex items-center">
         {[...Array(5)].map((_, i) => (
@@ -253,37 +403,37 @@ export default function TeacherProfile() {
             <div className="flex flex-col md:flex-row md:items-center">
               <div className="flex items-start gap-4 mb-4 md:mb-0">
                 <Avatar className="h-20 w-20 border-2 border-gray-200">
-                  <AvatarImage src={teacher.avatarUrl} alt={teacher.name} />
+                  <AvatarImage src={teacher.avatarUrl || ''} alt={teacher.name || 'Teacher'} />
                   <AvatarFallback className="text-xl bg-blue-700 text-white">{initials}</AvatarFallback>
                 </Avatar>
                 
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-2xl font-bold text-gray-900">{teacher.name}</h1>
-                    {teacher.isVerified && (
+                    <h1 className="text-2xl font-bold text-gray-900">{teacher.name || 'Teacher'}</h1>
+                    {!!teacher.isVerified && (
                       <span className="text-green-600" title="Verified">
                         <Check className="h-5 w-5" />
                       </span>
                     )}
-                    {teacher.isFeatured && (
+                    {!!teacher.isFeatured && (
                       <span className="bg-blue-600 text-white text-xs font-medium px-2 py-0.5 rounded">
                         Featured
                       </span>
                     )}
                   </div>
                   
-                  <p className="text-gray-700 mt-1 font-medium">{teacher.subject} Teacher</p>
+                  <p className="text-gray-700 mt-1 font-medium">{teacher.subject || 'General'} Teacher</p>
                   
                   <div className="flex items-center text-gray-500 text-sm mt-2">
                     <MapPin className="h-4 w-4 mr-1" />
-                    <span>{teacher.location}</span>
+                    <span>{teacher.location || 'Location not specified'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="md:ml-auto mt-4 md:mt-0">
                 <div className="flex flex-col items-end">
-                  <p className="text-2xl font-bold text-blue-600">₹{teacher.feesPerHour}/hr</p>
+                  <p className="text-2xl font-bold text-blue-600">₹{typeof teacher.feesPerHour === 'number' ? teacher.feesPerHour : 0}/hr</p>
                   <p className="text-sm text-gray-500">per hour</p>
                 </div>
               </div>
@@ -292,15 +442,15 @@ export default function TeacherProfile() {
             <div className="flex flex-wrap gap-6 mt-6">
               <div className="flex items-center">
                 {renderStars()}
-                <span className="ml-2 text-sm text-gray-500">({teacher.reviews || 0} reviews)</span>
+                <span className="ml-2 text-sm text-gray-500">({typeof teacher.reviews === 'number' ? teacher.reviews : 0} reviews)</span>
               </div>
               
               <div className="flex items-center text-gray-700 text-sm">
-                <span className="font-medium">{teacher.experience}+ years</span>
+                <span className="font-medium">{typeof teacher.experience === 'number' ? teacher.experience : 0}+ years</span>
               </div>
               
               <div className="flex items-center text-gray-700 text-sm">
-                <span className="font-medium">{teacher.students || 0}+ students</span>
+                <span className="font-medium">{typeof teacher.students === 'number' ? teacher.students : 0}+ students</span>
               </div>
             </div>
             
@@ -309,15 +459,17 @@ export default function TeacherProfile() {
                 ${teacher.teachingMode === "Online" ? "bg-green-100 text-green-800" : 
                   teacher.teachingMode === "Offline" ? "bg-blue-100 text-blue-800" : 
                   "bg-purple-100 text-purple-800"}`}>
-                {teacher.teachingMode}
+                {teacher.teachingMode || 'Online'}
               </span>
-              {Array.isArray(teacher.educationLevels) && teacher.educationLevels.map((level: string) => (
-                <span 
-                  key={level} 
-                  className="bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1 rounded-full"
-                >
-                  {level}
-                </span>
+              {Array.isArray(teacher.educationLevels) && teacher.educationLevels.length > 0 && teacher.educationLevels.map((level: string, index: number) => (
+                typeof level === 'string' ? (
+                  <span 
+                    key={`level-${index}`} 
+                    className="bg-gray-100 text-gray-700 text-xs font-medium px-3 py-1 rounded-full"
+                  >
+                    {level}
+                  </span>
+                ) : null
               ))}
             </div>
           </div>
@@ -356,25 +508,32 @@ export default function TeacherProfile() {
           <div className="p-6">
             {activeTab === 'about' && (
               <div>
-                <h2 className="text-xl font-semibold mb-4">About {teacher.name}</h2>
+                <h2 className="text-xl font-semibold mb-4">About {teacher.name || 'Teacher'}</h2>
                 <p className="text-gray-700 mb-6">
-                  {teacher.about}
+                  {teacher.about || 'No information provided'}
                 </p>
                 <p className="text-gray-700 mb-6">
-                  {teacher.methodology}
+                  {teacher.methodology || 'No teaching methodology provided'}
                 </p>
                 
                 <div className="mb-6">
                   <h3 className="font-medium text-gray-900 mb-3">Subjects</h3>
                   <div className="flex flex-wrap gap-2">
-                    {Array.isArray(teacher.subjects) && teacher.subjects.map((subject: string) => (
-                      <span
-                        key={subject}
-                        className="bg-blue-50 text-blue-700 px-3 py-1 rounded-md text-sm"
-                      >
-                        {subject}
-                      </span>
-                    ))}
+                    {Array.isArray(teacher.subjects) && teacher.subjects.length > 0 
+                      ? teacher.subjects
+                          .filter((subject: any) => typeof subject === 'string')
+                          .map((subject: string, index: number) => (
+                            <span
+                              key={`subject-${index}`}
+                              className="bg-blue-50 text-blue-700 px-3 py-1 rounded-md text-sm"
+                            >
+                              {subject}
+                            </span>
+                          ))
+                      : (
+                          <span className="text-gray-500 italic">No subjects listed</span>
+                        )
+                    }
                   </div>
                 </div>
                 
@@ -382,12 +541,14 @@ export default function TeacherProfile() {
                   <h3 className="font-medium text-gray-900 mb-3">Achievements</h3>
                   {Array.isArray(teacher.achievements) && teacher.achievements.length > 0 ? (
                     <ul className="space-y-2">
-                      {teacher.achievements.map((achievement: string, index: number) => (
-                        <li key={index} className="flex items-start">
-                          <Trophy className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
-                          <span className="text-gray-700">{achievement}</span>
-                        </li>
-                      ))}
+                      {teacher.achievements
+                        .filter((achievement: any) => typeof achievement === 'string')
+                        .map((achievement: string, index: number) => (
+                          <li key={`achievement-${index}`} className="flex items-start">
+                            <Trophy className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
+                            <span className="text-gray-700">{achievement}</span>
+                          </li>
+                        ))}
                     </ul>
                   ) : (
                     <p className="text-gray-500 italic">No achievements listed yet.</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X, Search, MapPin, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "@/app/components/shared/notification-dropdown";
+import { NotificationsProvider } from "@/lib/notifications-context";
+import ClientOnly from "@/app/components/client-only";
 
 interface NavbarProps {
   className?: string;
@@ -16,8 +18,13 @@ interface NavbarProps {
 export function Navbar({ className }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const { user, userProfile, logout } = useAuth();
+  const [isClientSide, setIsClientSide] = useState(false);
+  const { user, userProfile, logout, isLoading } = useAuth();
   const router = useRouter();
+  
+  useEffect(() => {
+    setIsClientSide(true);
+  }, []);
   
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -34,6 +41,19 @@ export function Navbar({ className }: NavbarProps) {
     } catch (error) {
       console.error("Logout error:", error);
     }
+  };
+
+  // Render notification components only when user is authenticated
+  const renderNotificationComponents = () => {
+    if (!user) return null;
+    
+    return (
+      <ClientOnly>
+        <NotificationsProvider>
+          <NotificationDropdown />
+        </NotificationsProvider>
+      </ClientOnly>
+    );
   };
 
   return (
@@ -103,7 +123,7 @@ export function Navbar({ className }: NavbarProps) {
             
             {user ? (
               <div className="flex items-center gap-4 relative">
-                <NotificationDropdown />
+                {renderNotificationComponents()}
                 <div className="relative">
                   <button 
                     onClick={toggleProfileMenu}

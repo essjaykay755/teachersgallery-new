@@ -128,9 +128,37 @@ function PhoneRequestsPage() {
     if (!user || !requestId) return;
     
     try {
+      console.log(`Approving request ${requestId} for requester ${requesterId}`);
+      
+      // Get teacher's phone number from their profile
+      const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+      let phoneNumber = null;
+      
+      if (teacherDoc.exists()) {
+        // Get phone number from teacher profile
+        phoneNumber = teacherDoc.data().phoneNumber;
+        
+        // Log for debugging
+        console.log("Retrieved teacher phone number:", phoneNumber);
+      } else {
+        console.error("Teacher document not found:", user.uid);
+      }
+      
+      // If no phone number found, use a fallback message
+      if (!phoneNumber || phoneNumber.trim() === "") {
+        console.error("Teacher phone number not found in profile for", user.uid);
+        phoneNumber = "Contact teacher for details";
+      }
+      
+      console.log(`Updating request ${requestId} with phone number:`, phoneNumber);
+      
+      // Update the request with status and phone number
       await updateDoc(doc(db, "phoneNumberRequests", requestId), {
-        status: "approved"
+        status: "approved",
+        phoneNumber: phoneNumber
       });
+      
+      console.log(`Request ${requestId} updated successfully with status approved and phoneNumber: ${phoneNumber}`);
       
       // Create notification for the requester
       await createPhoneRequestNotification(
@@ -142,8 +170,11 @@ function PhoneRequestsPage() {
       
       // Update local state
       setRequests(requests.map(req => 
-        req.id === requestId ? { ...req, status: "approved" } : req
+        req.id === requestId ? { ...req, status: "approved", phoneNumber } : req
       ));
+      
+      console.log("Local state updated");
+      
     } catch (error) {
       console.error("Error approving request:", error);
     }
@@ -273,7 +304,14 @@ function PhoneRequestsPage() {
                           <Phone className="h-4 w-4" />
                           <span>Contact Information</span>
                         </div>
-                        <p className="text-green-900">{request.phoneNumber || "Not available"}</p>
+                        {request.phoneNumber && request.phoneNumber !== "Contact teacher for details" ? (
+                          <p className="text-green-900 font-medium">{request.phoneNumber}</p>
+                        ) : (
+                          <div className="text-amber-600">
+                            <p>The teacher approved your request but no phone number is available.</p>
+                            <p className="text-sm mt-1">Please contact them through messages instead.</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
