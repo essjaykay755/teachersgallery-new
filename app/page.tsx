@@ -99,15 +99,14 @@ export default function Home() {
   return (
     <main className="bg-gray-50 min-h-screen pb-10">
       {/* Hero section */}
-      <div className="bg-black text-white py-10 text-center relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-black/80 z-0"></div>
+      <div className="bg-black text-white py-16 text-center relative">
         <div className="container mx-auto px-4 relative z-10">
           <div className="flex flex-col items-center">
-            <div className="mb-2">
-              <GraduationCap className="h-8 w-8 text-blue-400" />
+            <div className="mb-6">
+              <GraduationCap className="h-10 w-10 text-blue-500 mx-auto" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">Get your best teacher with <span className="text-blue-400">TeachersGallery</span></h1>
-            <p className="text-gray-300 max-w-2xl mx-auto mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4">Get your best teacher with <span className="text-blue-500">TeachersGallery</span></h1>
+            <p className="text-gray-400 max-w-2xl mx-auto mb-8 text-lg">
               Find the perfect teacher for your learning journey. Choose from our curated selection of experienced educators.
             </p>
           </div>
