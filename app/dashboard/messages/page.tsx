@@ -27,8 +27,7 @@ function MessagesPage() {
         // Get all conversations where current user is a participant
         const conversationsQuery = query(
           collection(db, "conversations"),
-          where("participants", "array-contains", user.uid),
-          orderBy("lastMessageAt", "desc")
+          where("participants", "array-contains", user.uid)
         );
         
         const conversationsSnapshot = await getDocs(conversationsQuery);
@@ -79,8 +78,9 @@ function MessagesPage() {
   
   const getOtherUserProfile = async (userId: string, userType: string) => {
     try {
-      // Get profile based on user type
-      const profileDoc = await getDoc(doc(db, "profiles", `${userType}s`, userId));
+      // Fix: Get profile based on user type (profiles -> userTypes -> userId)
+      const profileCollection = `${userType}s`; // "teachers", "students", or "parents"
+      const profileDoc = await getDoc(doc(db, profileCollection, userId));
       
       if (profileDoc.exists()) {
         return {

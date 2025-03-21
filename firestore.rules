@@ -32,6 +32,49 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
     }
     
+    // Allow conversation management - FIXED RULES
+    match /conversations/{conversationId} {
+      // Allow read access to conversations where user is a participant
+      allow read: if request.auth != null && (
+        // For existing conversations
+        (resource != null && resource.data != null && request.auth.uid in resource.data.participants) ||
+        // For listing conversations or new conversations 
+        (resource == null)
+      );
+      
+      // Allow creating conversations if the user is a participant
+      allow create: if request.auth != null && 
+                    request.resource.data.participants != null &&
+                    request.auth.uid in request.resource.data.participants;
+      
+      // Allow updating conversations if the user is a participant
+      allow update: if request.auth != null && 
+                    resource.data.participants != null &&
+                    request.auth.uid in resource.data.participants;
+      
+      // Allow participants to read and write messages in the conversation
+      match /messages/{messageId} {
+        // Allow reading messages if user is a participant in the parent conversation
+        allow read: if request.auth != null && (
+          // Allow reading if user is in the participants array
+          (exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants)
+        );
+        
+        // Allow creating messages if user is a participant and message senderId matches
+        allow create: if request.auth != null && 
+                      exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+                      request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants && 
+                      request.resource.data.senderId == request.auth.uid;
+        
+        // Allow updating messages if user is a participant and the sender
+        allow update: if request.auth != null && 
+                      exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+                      request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants && 
+                      resource.data.senderId == request.auth.uid;
+      }
+    }
+    
     // Allow phone number request management
     match /phoneNumberRequests/{requestId} {
       allow read: if request.auth != null && (resource.data.requesterId == request.auth.uid || resource.data.teacherId == request.auth.uid);

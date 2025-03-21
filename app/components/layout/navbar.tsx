@@ -87,7 +87,7 @@ export function Navbar({ className }: NavbarProps) {
               </Link>
               {user && (
                 <Link
-                  href="/messages"
+                  href="/dashboard/messages"
                   className="flex items-center text-white hover:text-blue-300 px-1 text-sm font-medium"
                 >
                   <span>Messages</span>
@@ -246,7 +246,7 @@ export function Navbar({ className }: NavbarProps) {
             </Link>
             {user && (
               <Link
-                href="/messages"
+                href="/dashboard/messages"
                 className="block px-3 py-2 text-base font-medium text-white hover:bg-gray-700 rounded-md"
               >
                 Messages

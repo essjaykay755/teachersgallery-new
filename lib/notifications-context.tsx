@@ -110,8 +110,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         // Use explicit type for the query to avoid type issues
         const notificationsQuery = query(
           collection(db, "notifications"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc")
+          where("userId", "==", user.uid)
         );
         
         // Add explicit error handling for the query

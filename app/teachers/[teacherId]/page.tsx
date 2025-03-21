@@ -11,7 +11,8 @@ import { useAuth } from '@/lib/auth-context';
 import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
-import { createPhoneRequestNotification } from '@/lib/notification-service';
+import { createPhoneRequestNotification, createMessageNotification } from '@/lib/notification-service';
+import { getOrCreateConversation } from '@/lib/chat-service';
 
 interface TeacherData {
   id: string;
@@ -274,22 +275,75 @@ export default function TeacherProfile() {
       throw new Error('You must be logged in to send a message');
     }
     
-    const messageId = uuidv4();
-    const timestamp = new Date().toISOString();
-    
-    // Create a new message document
-    await setDoc(doc(db, 'messages', messageId), {
-      id: messageId,
-      senderId: user.uid,
-      senderName: user.displayName || 'Anonymous',
-      recipientId: teacherId,
-      recipientName: teacher.name,
-      content: message,
-      timestamp,
-      read: false
-    });
-    
-    return;
+    try {
+      // Get user type
+      const userType = userProfile?.userType || 'student';
+      
+      console.log('Attempting to create or get conversation with teacher:', {
+        currentUserId: user.uid,
+        currentUserType: userType,
+        teacherId: teacherId,
+      });
+      
+      // Get or create a conversation
+      try {
+        const conversationId = await getOrCreateConversation(
+          user.uid,
+          userType,
+          teacherId,
+          'teacher'
+        );
+        
+        console.log('Successfully got conversation ID:', conversationId);
+        
+        // Add message to the conversation
+        try {
+          await addDoc(collection(db, "conversations", conversationId, "messages"), {
+            text: message,
+            senderId: user.uid,
+            createdAt: serverTimestamp()
+          });
+          
+          console.log('Message added to conversation');
+          
+          // Update conversation's last message
+          await updateDoc(doc(db, "conversations", conversationId), {
+            lastMessage: message,
+            lastMessageAt: serverTimestamp()
+          });
+          
+          // Create notification for the teacher
+          try {
+            await createMessageNotification(
+              teacherId,
+              user.uid,
+              conversationId,
+              message
+            );
+            console.log('Notification created for teacher');
+          } catch (notificationError) {
+            console.error("Error creating notification:", notificationError);
+            // Don't fail the overall operation if notification fails
+          }
+          
+          // Redirect to the conversation
+          window.location.href = `/dashboard/messages/${conversationId}`;
+          
+          return;
+        } catch (messageError: any) {
+          console.error("Error adding message to conversation:", messageError.code, messageError.message);
+          alert("Could not send message. Please try again.");
+          throw messageError;
+        }
+      } catch (conversationError: any) {
+        console.error("Error creating conversation:", conversationError.code, conversationError.message);
+        alert("Could not create conversation with teacher. Please try again later.");
+        throw conversationError;
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      throw error;
+    }
   };
   
   const requestPhoneNumber = async () => {

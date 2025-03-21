@@ -42,19 +42,24 @@ export function DashboardShell({ children }: DashboardShellProps) {
       icon: MessageSquare,
       active: pathname === "/dashboard/messages" || pathname.startsWith("/dashboard/messages/"),
     },
-    {
+  ];
+  
+  // Add Phone Requests only for teachers
+  if (isTeacher) {
+    navigationItems.push({
       title: "Phone Requests",
       href: "/dashboard/phone-requests",
       icon: Phone,
       active: pathname === "/dashboard/phone-requests",
-    },
-    {
-      title: "Profile",
-      href: `/dashboard/${userProfile?.userType}/edit`,
-      icon: UserCircle,
-      active: pathname === `/dashboard/${userProfile?.userType}/edit`,
-    },
-  ];
+    });
+  }
+  
+  navigationItems.push({
+    title: "Profile",
+    href: `/dashboard/${userProfile?.userType}/edit`,
+    icon: UserCircle,
+    active: pathname === `/dashboard/${userProfile?.userType}/edit`,
+  });
   
   // Add a payment link only for teachers
   if (isTeacher) {
