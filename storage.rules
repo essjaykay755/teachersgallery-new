@@ -5,7 +5,14 @@ service firebase.storage {
     // Allow access to avatars directly under the avatars folder
     match /avatars/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId.split('_')[0];
+    }
+    
+    // Allow access to avatars with timestamps in the filename
+    match /avatars/{userId_with_timestamp} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                   request.auth.uid == userId_with_timestamp.split('_')[0];
     }
     
     // Allow access to avatars organized by user type

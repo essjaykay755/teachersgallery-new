@@ -319,10 +319,23 @@ function TeacherEditProfilePage() {
               <AvatarInput 
                 userId={user?.uid || null}
                 initialAvatarUrl={avatarUrl}
-                onChange={(url) => {
-                  setAvatarUrl(url);
+                onChange={async (url) => {
                   if (url && url !== avatarUrl) {
                     console.log("Avatar updated:", url);
+                    setAvatarUrl(url);
+                    
+                    // Save the updated avatar URL immediately
+                    if (user) {
+                      try {
+                        await updateDoc(doc(db, "teachers", user.uid), {
+                          avatarUrl: url,
+                          updatedAt: Date.now(),
+                        });
+                        console.log("Avatar saved to Firestore");
+                      } catch (error) {
+                        console.error("Error saving avatar:", error);
+                      }
+                    }
                   }
                 }}
                 variant="compact"

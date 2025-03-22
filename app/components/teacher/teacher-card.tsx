@@ -49,6 +49,10 @@ export function TeacherCard(props: TeacherCardProps) {
       .toUpperCase().substring(0, 2);
   }, [name]);
 
+  // Create a cache-busted avatar URL to prevent stale images
+  // This version ensures a unique URL even after server restart
+  // Note: This is now handled directly in the AvatarImage component
+  
   // Define color for teaching mode badge
   const getModeColor = (mode: string = "") => {
     switch (mode) {

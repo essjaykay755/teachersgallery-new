@@ -11,6 +11,24 @@ import { db } from "@/lib/firebase";
 import { Card, CardContent } from "@/app/components/shared/card";
 import { MessageSquare, ChevronRight } from "lucide-react";
 
+// Add a helper function for cache-busting after the import statements
+// but before any component definitions
+function getCacheBustedUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  
+  // Force a new URL by adding both timestamp and a random number
+  const separator = url.includes('?') ? '&' : '?';
+  const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
+  
+  // Handle already cache-busted URLs 
+  if (url.includes('v=')) {
+    // Replace existing v= parameter with new one
+    return url.replace(/v=[^&]+/, `v=${Date.now()}-${Math.random()}`);
+  }
+  
+  return `${url}${cacheBuster}`;
+}
+
 function MessagesPage() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,7 +158,7 @@ function MessagesPage() {
                     <div className="relative h-12 w-12 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
                       {conversation.otherUser?.avatarUrl ? (
                         <Image
-                          src={conversation.otherUser.avatarUrl}
+                          src={getCacheBustedUrl(conversation.otherUser.avatarUrl)}
                           alt={getDisplayName(conversation.otherUser)}
                           fill
                           className="object-cover"

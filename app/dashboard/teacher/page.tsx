@@ -10,27 +10,27 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
 import { MessageSquare, Phone, Users, Star, Edit, ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 
-function TeacherDashboardPage() {
+function TeacherDashboard() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
-  const router = useRouter();
-  
-  // For debugging
-  const [debugData, setDebugData] = useState<any>(null);
-  
+
   useEffect(() => {
+    if (!user?.uid) return;
+
     const fetchTeacherProfile = async () => {
-      if (!user) return;
-      
       try {
-        const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+        const docRef = doc(db, "teachers", user.uid);
+        const docSnap = await getDoc(docRef);
         
-        if (teacherDoc.exists()) {
-          const data = teacherDoc.data();
-          setTeacherProfile(data);
-          setDebugData(JSON.stringify(data, null, 2));
+        if (docSnap.exists()) {
+          setTeacherProfile(docSnap.data());
+        } else {
+          // Teacher profile doesn't exist, redirect to onboarding
+          router.push("/onboarding/teacher/step1");
         }
       } catch (error) {
         console.error("Error fetching teacher profile:", error);
@@ -38,14 +38,25 @@ function TeacherDashboardPage() {
         setIsLoading(false);
       }
     };
-    
+
     fetchTeacherProfile();
-  }, [user]);
-  
+  }, [user, router]);
+
+  // Calculate initials for avatar
+  const getInitials = (name: string): string => {
+    if (!name) return "T";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   const handleEditProfile = () => {
     router.push("/dashboard/teacher/edit");
   };
-  
+
   const toggleProfileVisibility = async () => {
     if (!user) return;
     
@@ -90,15 +101,15 @@ function TeacherDashboardPage() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <div className="relative h-24 w-24 rounded-full overflow-hidden border-4 border-white">
                     {teacherProfile.avatarUrl ? (
-                      <Image
-                        src={teacherProfile.avatarUrl}
-                        alt={teacherProfile.name || "Teacher"}
-                        fill
-                        className="object-cover"
-                      />
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage src={teacherProfile.avatarUrl} alt={teacherProfile.name || "Teacher"} />
+                        <AvatarFallback className="text-xl bg-blue-700 text-white">
+                          {getInitials(teacherProfile.name || "Teacher")}
+                        </AvatarFallback>
+                      </Avatar>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white text-xl font-bold">
-                        {teacherProfile.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "T"}
+                        {getInitials(teacherProfile.name || "Teacher")}
                       </div>
                     )}
                   </div>
@@ -276,14 +287,6 @@ function TeacherDashboardPage() {
               </div>
             </div>
             
-            {/* Debugging section - only during development */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-6 p-4 bg-gray-100 rounded overflow-auto">
-                <h4 className="font-bold mb-2">Debug Data:</h4>
-                <pre className="text-xs">{debugData}</pre>
-              </div>
-            )}
-            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -361,7 +364,7 @@ function TeacherDashboardPage() {
   );
 }
 
-export default withAuth(TeacherDashboardPage, {
+export default withAuth(TeacherDashboard, {
   allowedUserTypes: ["teacher"],
-  redirectTo: "/login",
+  redirectTo: "/login"
 }); 

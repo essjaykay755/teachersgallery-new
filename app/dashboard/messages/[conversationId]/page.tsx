@@ -46,6 +46,24 @@ interface Message {
   requestId?: string;
 }
 
+// Add a helper function for cache-busting after the import statements
+// but before any component definitions
+function getCacheBustedUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  
+  // Force a new URL by adding both timestamp and a random number
+  const separator = url.includes('?') ? '&' : '?';
+  const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
+  
+  // Handle already cache-busted URLs 
+  if (url.includes('v=')) {
+    // Replace existing v= parameter with new one
+    return url.replace(/v=[^&]+/, `v=${Date.now()}-${Math.random()}`);
+  }
+  
+  return `${url}${cacheBuster}`;
+}
+
 function ConversationPage() {
   const params = useParams();
   const conversationId = params.conversationId as string;
@@ -651,7 +669,7 @@ function ConversationPage() {
                 <div className="relative h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
                   {otherUser.avatarUrl ? (
                     <Image
-                      src={otherUser.avatarUrl}
+                      src={getCacheBustedUrl(otherUser.avatarUrl)}
                       alt={getDisplayName(otherUser)}
                       fill
                       className="object-cover"

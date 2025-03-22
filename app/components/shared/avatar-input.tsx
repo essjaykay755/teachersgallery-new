@@ -35,6 +35,7 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
   ) => {
     const {
       avatarUrl,
+      isUploading,
       showCropper,
       cropperImage,
       error,
@@ -55,94 +56,99 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
 
     return (
       <>
-        {/* Avatar Input UI */}
-        <div className={`${className}`}>
-          {variant === "full" ? (
-            <div className="flex flex-col items-center space-y-4 sm:flex-row sm:space-y-0 sm:space-x-6">
-              <div
-                className={`relative ${sizeClasses[size]} overflow-hidden rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center`}
-              >
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    alt="Avatar"
-                    fill
-                    className="object-cover"
-                    onError={(e) => {
-                      // Fallback to default avatar icon if image fails to load
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                ) : null}
-                <User
-                  className={`text-gray-400 ${
-                    size === "sm" ? "h-10 w-10" : size === "md" ? "h-14 w-14" : "h-20 w-20"
-                  } ${avatarUrl ? 'hidden' : ''}`}
-                />
-              </div>
+        <div
+          className={`${className} flex flex-col ${
+            variant === "compact" ? "gap-3 sm:flex-row sm:items-center" : "gap-3"
+          }`}
+        >
+          <div
+            className={`relative overflow-hidden rounded-full bg-gray-100 ${
+              sizeClasses[size]
+            }`}
+          >
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt="Avatar"
+                fill
+                className="object-cover"
+                sizes={`${
+                  size === "sm" ? "5rem" : size === "md" ? "8rem" : "10rem"
+                }`}
+                priority
+                unoptimized={avatarUrl.startsWith('blob:')}
+                onLoad={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  console.log("Avatar loaded with dimensions:", img.naturalWidth, "x", img.naturalHeight);
+                }}
+                onError={(e) => {
+                  console.error("Avatar image failed to load:", e);
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = "/images/default-avatar.png";
+                }}
+              />
+            ) : (
+              <User
+                className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-400 ${
+                  size === "sm" ? "h-10 w-10" : size === "md" ? "h-14 w-14" : "h-20 w-20"
+                } ${avatarUrl ? 'hidden' : ''}`}
+              />
+            )}
 
-              <div className="flex-1">
-                <label
-                  htmlFor="avatar-upload"
-                  className="flex w-full cursor-pointer flex-col items-center rounded-md border border-dashed border-gray-300 px-4 py-6 text-center hover:bg-gray-50 sm:items-start"
-                >
-                  <Upload className="mx-auto h-8 w-8 text-gray-400 sm:mx-0" />
-                  <span className="mt-2 block text-sm font-medium text-gray-700">
-                    {avatarUrl ? "Change profile picture" : "Upload a profile picture"}
-                  </span>
-                  <span className="mt-1 block text-xs text-gray-500">
-                    JPEG, PNG, or GIF up to 5MB
-                  </span>
-                </label>
-                {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+            {isUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-white border-t-transparent"></div>
               </div>
-            </div>
-          ) : (
-            // Compact variant
-            <div className="flex flex-col items-center space-y-3">
-              <div
-                className={`relative ${sizeClasses[size]} overflow-hidden rounded-full border-2 border-gray-200 bg-gray-100 flex items-center justify-center`}
-              >
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    alt="Avatar"
-                    fill
-                    className="object-cover"
-                    onError={(e) => {
-                      // Fallback to default avatar icon if image fails to load
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                ) : null}
-                <User
-                  className={`text-gray-400 ${
-                    size === "sm" ? "h-10 w-10" : size === "md" ? "h-14 w-14" : "h-20 w-20"
-                  } ${avatarUrl ? 'hidden' : ''}`}
-                />
-              </div>
+            )}
+          </div>
 
+          {variant === "compact" ? (
+            <div className="flex flex-col space-y-1">
               <div>
                 <label
-                  htmlFor="avatar-upload"
-                  className="inline-block cursor-pointer rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                  htmlFor={`avatar-upload-${userId}`}
+                  className={`inline-block cursor-pointer rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {avatarUrl ? "Change Photo" : "Upload Photo"}
+                  {isUploading ? "Uploading..." : avatarUrl ? "Change Photo" : "Upload Photo"}
                 </label>
                 {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
               </div>
             </div>
+          ) : (
+            <div className="flex w-full flex-col items-center justify-center">
+              <div
+                className={`flex ${
+                  sizeClasses[size]
+                } cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 ${
+                  isUploading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                <label
+                  htmlFor={`avatar-upload-${userId}`}
+                  className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-2 text-center"
+                >
+                  <Upload className="mb-1 h-6 w-6 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-500">
+                    {isUploading ? "Uploading..." : "Upload"}
+                  </span>
+                </label>
+              </div>
+              <p className="mt-2 text-center text-xs text-gray-500">
+                PNG, JPG or JPEG (max. 5MB)
+              </p>
+              {error && <p className="mt-1 text-xs text-center text-red-500">{error}</p>}
+            </div>
           )}
 
           <input
-            id="avatar-upload"
+            id={`avatar-upload-${userId}`}
             ref={ref}
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
             className="sr-only"
+            disabled={isUploading}
           />
         </div>
 

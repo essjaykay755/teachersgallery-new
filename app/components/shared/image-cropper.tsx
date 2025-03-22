@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Cropper from "react-easy-crop";
 import { X } from "lucide-react";
 
@@ -27,6 +27,26 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
+
+  // Create image object when component mounts to ensure it's loaded
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = image;
+    img.onload = () => {
+      setImageObj(img);
+    };
+    img.onerror = (error) => {
+      console.error("Error loading image for cropper:", error);
+      onCancel(); // Close the cropper if the image fails to load
+    };
+
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [image, onCancel]);
 
   const onCropChange = useCallback((newCrop: Point) => {
     setCrop(newCrop);
@@ -42,9 +62,19 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
 
   const createImage = (url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
+      // Use our pre-loaded image if available
+      if (imageObj && imageObj.src === url) {
+        resolve(imageObj);
+        return;
+      }
+      
       const image = new Image();
+      image.crossOrigin = "anonymous";
       image.addEventListener("load", () => resolve(image));
-      image.addEventListener("error", (error) => reject(error));
+      image.addEventListener("error", (error) => {
+        console.error("Error creating image:", error);
+        reject(error);
+      });
       image.src = url;
     });
 
@@ -53,55 +83,61 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
     pixelCrop: Area,
     rotation = 0
   ): Promise<Blob> => {
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) {
-      throw new Error("Could not get canvas context");
+    try {
+      // Create a new image from the source
+      const image = await createImage(imageSrc);
+      console.log("Original image dimensions:", image.width, "x", image.height);
+      console.log("Crop area:", pixelCrop);
+      
+      // Create a canvas with exactly 200x200 dimensions
+      const canvas = document.createElement("canvas");
+      canvas.width = 200;
+      canvas.height = 200;
+      const ctx = canvas.getContext("2d");
+      
+      if (!ctx) {
+        throw new Error("Could not get canvas context");
+      }
+      
+      // Fill with white background
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw the cropped image directly to the 200x200 canvas
+      ctx.drawImage(
+        image,
+        pixelCrop.x,
+        pixelCrop.y,
+        pixelCrop.width,
+        pixelCrop.height,
+        0,
+        0,
+        200,
+        200
+      );
+      
+      console.log("Canvas dimensions:", canvas.width, "x", canvas.height);
+      
+      // Create blob with fixed type and high quality
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Canvas toBlob error"));
+              return;
+            }
+            
+            console.log("Generated avatar blob:", blob.size, "bytes,", blob.type);
+            resolve(blob);
+          },
+          "image/jpeg",
+          0.95
+        );
+      });
+    } catch (error) {
+      console.error("Error generating cropped image:", error);
+      throw error;
     }
-
-    // Set width and height to 200px for the final output
-    canvas.width = 200;
-    canvas.height = 200;
-
-    // Draw the cropped image to the canvas
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Calculate scale factor
-    const scaleX = image.width / pixelCrop.width;
-    const scaleY = image.height / pixelCrop.height;
-    const scale = Math.min(scaleX, scaleY);
-
-    // Calculate the position to center the crop
-    const sourceWidth = pixelCrop.width;
-    const sourceHeight = pixelCrop.height;
-    const sourceX = pixelCrop.x;
-    const sourceY = pixelCrop.y;
-
-    ctx.drawImage(
-      image,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-    // Extract as Blob
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          throw new Error("Canvas toBlob error");
-        }
-      }, "image/jpeg", 0.85); // Use JPEG format with 85% quality
-    });
   };
 
   const handleComplete = async () => {

@@ -453,15 +453,14 @@ export default function TeacherProfile() {
     );
   }
 
-  // Get initials for avatar fallback
-  const initials = typeof teacher.name === 'string' 
-    ? teacher.name
-        .split(" ")
-        .map((n: string) => n && n[0] || '')
-        .join("")
-        .toUpperCase().substring(0, 2) || "UT"
-    : "UT";
-
+  // Calculate initials for avatar fallback
+  const initials = teacher.name
+    .split(" ")
+    .map((n) => n[0] || "")
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
+    
   const renderStars = () => {
     const rating = typeof teacher.rating === 'number' && !isNaN(teacher.rating) 
       ? teacher.rating 
@@ -501,7 +500,7 @@ export default function TeacherProfile() {
             <div className="flex flex-col md:flex-row md:items-center">
               <div className="flex items-start gap-4 mb-4 md:mb-0">
                 <Avatar className="h-20 w-20 border-2 border-gray-200">
-                  <AvatarImage src={teacher.avatarUrl || ''} alt={teacher.name || 'Teacher'} />
+                  <AvatarImage src={teacher.avatarUrl} alt={teacher.name || 'Teacher'} />
                   <AvatarFallback className="text-xl bg-blue-700 text-white">{initials}</AvatarFallback>
                 </Avatar>
                 

@@ -57,7 +57,15 @@ export function useAvatarUpload({
       
       setError(null);
       
-      // Create a URL for the image to be used by the cropper
+      // Store the file directly
+      setAvatarFile(file);
+      
+      // Revoke any previous blob URL before creating a new one
+      if (cropperImage) {
+        URL.revokeObjectURL(cropperImage);
+      }
+      
+      // Create a new URL for the image to be used by the cropper
       const imageUrl = URL.createObjectURL(file);
       setCropperImage(imageUrl);
       setShowCropper(true);
@@ -70,19 +78,45 @@ export function useAvatarUpload({
   };
   
   // Handle when cropping is complete
-  const handleCropComplete = (croppedBlob: Blob) => {
-    // Convert Blob to File for upload
-    const fileName = `avatar-${Date.now()}.jpg`;
-    const croppedFile = new File([croppedBlob], fileName, { type: "image/jpeg" });
-    
-    setAvatarFile(croppedFile);
-    setAvatarUrl(URL.createObjectURL(croppedBlob));
-    setShowCropper(false);
-    
-    // Cleanup the cropper image URL
-    if (cropperImage) {
-      URL.revokeObjectURL(cropperImage);
-      setCropperImage(null);
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    try {
+      // Log the received blob details
+      console.log("Received cropped blob:", croppedBlob.size, "bytes,", croppedBlob.type);
+      
+      // Create file from the cropped blob (should already be 200x200)
+      const fileName = `avatar-${Date.now()}.jpg`;
+      const croppedFile = new File([croppedBlob], fileName, { 
+        type: "image/jpeg",
+        lastModified: Date.now() 
+      });
+      
+      // Set the file and clean up
+      setAvatarFile(croppedFile);
+      setShowCropper(false);
+      
+      // Clean up previous cropperImage URL
+      if (cropperImage) {
+        URL.revokeObjectURL(cropperImage);
+        setCropperImage(null);
+      }
+      
+      // Upload the avatar
+      try {
+        setIsUploading(true);
+        const uploadedUrl = await uploadAvatar();
+        if (uploadedUrl) {
+          setAvatarUrl(uploadedUrl);
+        }
+      } catch (error) {
+        console.error("Error uploading avatar:", error);
+        setError("Failed to upload avatar. Please try again.");
+      } finally {
+        setIsUploading(false);
+      }
+    } catch (error) {
+      console.error("Error processing cropped image:", error);
+      setError("Failed to process avatar. Please try again.");
+      setShowCropper(false);
     }
   };
   
@@ -104,28 +138,40 @@ export function useAvatarUpload({
     }
     
     try {
-      setIsUploading(true);
       setError(null);
       
-      // Create a reference to Firebase Storage
-      const storageRef = ref(storage, `avatars/${userId}`);
+      // Add specific metadata to preserve image type and dimensions
+      const metadata = {
+        contentType: 'image/jpeg',
+        customMetadata: {
+          'width': '200',
+          'height': '200',
+          'resized': 'true'
+        }
+      };
       
-      // Upload the cropped image
-      await uploadBytes(storageRef, avatarFile);
+      // Generate a unique storage path
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 10000);
+      const storageRef = ref(storage, `avatars/${userId}_${timestamp}_${random}`);
+      
+      console.log(`Uploading avatar (${avatarFile.size} bytes) to ${storageRef.fullPath}`);
+      
+      // Upload with metadata
+      await uploadBytes(storageRef, avatarFile, metadata);
       
       // Get the download URL
       const downloadUrl = await getDownloadURL(storageRef);
       
-      // Update the state
-      setAvatarUrl(downloadUrl);
+      // Add cache buster query parameter
+      const cacheBustedUrl = `${downloadUrl}?v=${timestamp}_${random}`;
       
-      return downloadUrl;
+      console.log("Avatar uploaded successfully:", cacheBustedUrl);
+      return cacheBustedUrl;
     } catch (error: any) {
       console.error("Error uploading avatar:", error);
       setError(error.message || "Failed to upload avatar");
       return null;
-    } finally {
-      setIsUploading(false);
     }
   };
   

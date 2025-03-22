@@ -11,6 +11,24 @@ import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
 import { MessageSquare, School, Users, Edit } from "lucide-react";
 
+// Add a helper function for cache-busting after the import statements
+// but before any component definitions
+function getCacheBustedUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  
+  // Force a new URL by adding both timestamp and a random number
+  const separator = url.includes('?') ? '&' : '?';
+  const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
+  
+  // Handle already cache-busted URLs 
+  if (url.includes('v=')) {
+    // Replace existing v= parameter with new one
+    return url.replace(/v=[^&]+/, `v=${Date.now()}-${Math.random()}`);
+  }
+  
+  return `${url}${cacheBuster}`;
+}
+
 function ParentDashboardPage() {
   const [parentProfile, setParentProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +85,7 @@ function ParentDashboardPage() {
                   <div className="relative h-24 w-24 rounded-full overflow-hidden border-4 border-white">
                     {parentProfile.avatarUrl ? (
                       <Image
-                        src={parentProfile.avatarUrl}
+                        src={getCacheBustedUrl(parentProfile.avatarUrl)}
                         alt={parentProfile.fullName || "Parent"}
                         fill
                         className="object-cover"

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { DashboardShell } from "@/app/components/layout/dashboard-shell";
 import withAuth from "@/lib/withAuth";
 import { useAuth } from "@/lib/auth-context";
@@ -10,23 +9,28 @@ import { doc, getDoc, collection, query, where, getDocs } from "firebase/firesto
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
 import { MessageSquare, School, Edit, ChevronRight, Phone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 
-function StudentDashboardPage() {
-  const [studentProfile, setStudentProfile] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [phoneRequestsCount, setPhoneRequestsCount] = useState(0);
-  const { user } = useAuth();
+function StudentDashboard() {
   const router = useRouter();
-  
+  const { user } = useAuth();
+  const [studentProfile, setStudentProfile] = useState<any>(null);
+  const [phoneRequests, setPhoneRequests] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
+    if (!user?.uid) return;
+
     const fetchStudentProfile = async () => {
-      if (!user) return;
-      
       try {
-        const studentDoc = await getDoc(doc(db, "students", user.uid));
+        const docRef = doc(db, "students", user.uid);
+        const docSnap = await getDoc(docRef);
         
-        if (studentDoc.exists()) {
-          setStudentProfile(studentDoc.data());
+        if (docSnap.exists()) {
+          setStudentProfile(docSnap.data());
+        } else {
+          // Student profile doesn't exist, redirect to onboarding
+          router.push("/onboarding/student/step1");
         }
       } catch (error) {
         console.error("Error fetching student profile:", error);
@@ -34,46 +38,57 @@ function StudentDashboardPage() {
         setIsLoading(false);
       }
     };
-    
-    fetchStudentProfile();
-  }, [user]);
-  
-  useEffect(() => {
+
     const fetchPhoneRequests = async () => {
-      if (!user) return;
-      
       try {
-        const phoneRequestsQuery = query(
+        const q = query(
           collection(db, "phoneNumberRequests"),
           where("requesterId", "==", user.uid)
         );
         
-        const requestsSnapshot = await getDocs(phoneRequestsQuery);
-        const pendingRequests = requestsSnapshot.docs.filter(
-          doc => doc.data().status === "pending"
-        ).length;
+        const querySnapshot = await getDocs(q);
+        const requests: any[] = [];
         
-        setPhoneRequestsCount(pendingRequests);
+        querySnapshot.forEach((doc) => {
+          requests.push({
+            id: doc.id,
+            ...doc.data()
+          });
+        });
+        
+        setPhoneRequests(requests);
       } catch (error) {
         console.error("Error fetching phone requests:", error);
       }
     };
-    
+
+    fetchStudentProfile();
     fetchPhoneRequests();
-  }, [user]);
-  
+  }, [user, router]);
+
+  // Calculate initials for avatar
+  const getInitials = (name: string): string => {
+    if (!name) return "S";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   const handleEditProfile = () => {
     router.push("/dashboard/student/edit");
   };
-  
+
   return (
     <DashboardShell>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Student Dashboard</h1>
+      <div className="py-6 space-y-6">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <button
             onClick={handleEditProfile}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Edit className="mr-2 h-4 w-4" /> Edit Profile
           </button>
@@ -91,25 +106,25 @@ function StudentDashboardPage() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <div className="relative h-24 w-24 rounded-full overflow-hidden border-4 border-white">
                     {studentProfile.avatarUrl ? (
-                      <Image
-                        src={studentProfile.avatarUrl}
-                        alt={studentProfile.fullName || "Student"}
-                        fill
-                        className="object-cover"
-                      />
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage src={studentProfile.avatarUrl} alt={studentProfile.fullName || "Student"} />
+                        <AvatarFallback className="text-xl bg-blue-700 text-white">
+                          {getInitials(studentProfile.fullName || "Student")}
+                        </AvatarFallback>
+                      </Avatar>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white text-xl font-bold">
-                        {studentProfile.fullName?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "S"}
+                        {getInitials(studentProfile.fullName || "Student")}
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex-1">
+                  <div>
                     <h2 className="text-2xl font-bold text-gray-900">{studentProfile.fullName || "Student"}</h2>
-                    <p className="text-lg text-gray-700">
-                      {studentProfile.currentClass || "Student"}
-                      {studentProfile.school && ` • ${studentProfile.school}`}
-                    </p>
+                    <p className="text-gray-600 mt-1">Class {studentProfile.class || "Not specified"}</p>
+                    {studentProfile.school && (
+                      <p className="text-gray-600 mt-1">{studentProfile.school}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -153,7 +168,7 @@ function StudentDashboardPage() {
                   <Phone className="h-4 w-4 text-gray-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{phoneRequestsCount}</div>
+                  <div className="text-2xl font-bold">{phoneRequests.length}</div>
                   <p className="text-xs text-gray-500">Pending requests</p>
                   <button 
                     onClick={() => router.push("/dashboard/phone-requests")}
@@ -190,16 +205,13 @@ function StudentDashboardPage() {
             </div>
           </>
         ) : (
-          <div className="text-center py-8 bg-white shadow rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Complete Your Profile</h3>
-            <p className="text-gray-500 mb-4">
-              You need to complete your onboarding to set up your student profile.
-            </p>
+          <div className="text-center py-8">
+            <p className="text-gray-600">No profile found. Please complete your onboarding.</p>
             <button
               onClick={() => router.push("/onboarding/student/step1")}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Complete Onboarding
+              Start Onboarding
             </button>
           </div>
         )}
@@ -208,7 +220,7 @@ function StudentDashboardPage() {
   );
 }
 
-export default withAuth(StudentDashboardPage, {
+export default withAuth(StudentDashboard, {
   allowedUserTypes: ["student"],
-  redirectTo: "/login",
+  redirectTo: "/login"
 }); 
