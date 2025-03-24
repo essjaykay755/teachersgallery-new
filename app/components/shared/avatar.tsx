@@ -41,11 +41,21 @@ const AvatarImage = React.forwardRef<
     return `${src}${cacheBuster}`;
   }, [src]);
   
+  // Use a standard size for all avatars (assumes all avatars are 200x200 pixels)
+  const imageDimensions = {
+    width: 200,
+    height: 200
+  };
+
   return (
     <AvatarPrimitive.Image
       ref={ref}
       src={cacheBustedSrc}
       className={cn("aspect-square h-full w-full object-cover", className)}
+      width={imageDimensions.width}
+      height={imageDimensions.height}
+      loading="eager" // Load avatars quickly
+      decoding="async" // Allow the browser to decode the image asynchronously
       onError={(e) => {
         // Hide the image if it fails to load
         const target = e.target as HTMLImageElement;

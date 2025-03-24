@@ -241,8 +241,10 @@ function TeacherDashboard() {
                     <p className="text-sm text-gray-500">Experience</p>
                     <p className="font-medium">
                       {teacherProfile.yearsOfExperience 
-                        ? `${teacherProfile.yearsOfExperience} years` 
-                        : teacherProfile.experience || "Not provided"}
+                        ? `${teacherProfile.yearsOfExperience}` 
+                        : teacherProfile.experience 
+                          ? `${teacherProfile.experience} years`
+                          : "Not provided"}
                     </p>
                   </div>
                   

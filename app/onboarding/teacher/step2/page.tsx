@@ -32,6 +32,11 @@ export default function TeacherOnboardingStep2() {
     { degree: string; institution: string; year: string }[]
   >([{ degree: "", institution: "", year: "" }]);
   
+  // Work History
+  const [workHistory, setWorkHistory] = useState<
+    { position: string; organization: string; startDate: string; endDate: string; description: string; current: boolean }[]
+  >([]);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -66,6 +71,9 @@ export default function TeacherOnboardingStep2() {
             setQualifications(data.qualifications.length > 0 
               ? data.qualifications 
               : [{ degree: "", institution: "", year: "" }]);
+          }
+          if (data.workHistory && Array.isArray(data.workHistory)) {
+            setWorkHistory(data.workHistory.length > 0 ? data.workHistory : [{ position: "", organization: "", startDate: "", endDate: "", description: "", current: false }]);
           }
         }
         
@@ -140,6 +148,32 @@ export default function TeacherOnboardingStep2() {
     setQualifications(newQualifications);
   };
   
+  const handleAddWorkHistoryEntry = () => {
+    setWorkHistory([
+      ...workHistory,
+      { position: "", organization: "", startDate: "", endDate: "", description: "", current: false }
+    ]);
+  };
+  
+  const handleRemoveWorkHistoryEntry = (index: number) => {
+    setWorkHistory(workHistory.filter((_, i) => i !== index));
+  };
+  
+  const handleWorkHistoryChange = (index: number, field: string, value: string | boolean) => {
+    const updatedWorkHistory = [...workHistory];
+    updatedWorkHistory[index] = {
+      ...updatedWorkHistory[index],
+      [field]: value
+    };
+    
+    // If setting current to true, clear the end date
+    if (field === 'current' && value === true) {
+      updatedWorkHistory[index].endDate = '';
+    }
+    
+    setWorkHistory(updatedWorkHistory);
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -172,6 +206,7 @@ export default function TeacherOnboardingStep2() {
           qualifications: qualifications.filter(
             (q) => q.degree && q.institution && q.year
           ),
+          workHistory: workHistory.filter(w => w.position || w.organization),
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -413,6 +448,134 @@ export default function TeacherOnboardingStep2() {
                 </div>
               ))}
             </div>
+          </div>
+          
+          {/* Work History Section */}
+          <div className="mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Work History</h3>
+              <button
+                type="button"
+                onClick={handleAddWorkHistoryEntry}
+                className="inline-flex items-center rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add Experience
+              </button>
+            </div>
+            
+            {workHistory.length === 0 ? (
+              <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 py-8 text-center">
+                <p className="text-gray-500">No work history added yet.</p>
+                <button
+                  type="button"
+                  onClick={handleAddWorkHistoryEntry}
+                  className="mt-2 text-sm text-blue-600 hover:underline"
+                >
+                  + Add your work experience
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {workHistory.map((work, index) => (
+                  <div key={`work-${index}`} className="relative rounded-md border border-gray-200 bg-white p-4">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveWorkHistoryEntry(index)}
+                      className="absolute right-2 top-2 text-gray-400 hover:text-red-500"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                    
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Position/Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={work.position}
+                          onChange={(e) => handleWorkHistoryChange(index, 'position', e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                          placeholder="e.g., Mathematics Teacher"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Organization <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={work.organization}
+                          onChange={(e) => handleWorkHistoryChange(index, 'organization', e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                          placeholder="e.g., ABC School"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Start Date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={work.startDate}
+                          onChange={(e) => handleWorkHistoryChange(index, 'startDate', e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                          placeholder="e.g., June 2018"
+                        />
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between">
+                          <label className="block text-sm font-medium text-gray-700">
+                            End Date
+                          </label>
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`current-${index}`}
+                              checked={work.current}
+                              onChange={(e) => handleWorkHistoryChange(index, 'current', e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <label htmlFor={`current-${index}`} className="ml-2 text-sm text-gray-600">
+                              Current
+                            </label>
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          value={work.endDate}
+                          onChange={(e) => handleWorkHistoryChange(index, 'endDate', e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                          placeholder="e.g., May 2022"
+                          disabled={work.current}
+                        />
+                      </div>
+                      
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Description
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={work.description}
+                          onChange={(e) => handleWorkHistoryChange(index, 'description', e.target.value)}
+                          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                          placeholder="Describe your responsibilities and achievements"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <p className="mt-2 text-sm text-gray-500">
+              Add your teaching positions and relevant work experience. This helps students understand your background.
+            </p>
           </div>
           
           {error && (

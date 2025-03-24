@@ -89,21 +89,24 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
       console.log("Original image dimensions:", image.width, "x", image.height);
       console.log("Crop area:", pixelCrop);
       
-      // Create a canvas with exactly 200x200 dimensions
+      // Create a canvas directly at the target size (200x200)
       const canvas = document.createElement("canvas");
-      canvas.width = 200;
-      canvas.height = 200;
       const ctx = canvas.getContext("2d");
       
       if (!ctx) {
         throw new Error("Could not get canvas context");
       }
       
-      // Fill with white background
+      // Set canvas dimensions to our target 200x200 pixels
+      canvas.width = 200;
+      canvas.height = 200;
+      
+      // Fill with white background for transparent images
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw the cropped image directly to the 200x200 canvas
+      // Draw the cropped portion of the image directly to the 200x200 canvas
+      // This combines cropping and resizing in one step
       ctx.drawImage(
         image,
         pixelCrop.x,
@@ -116,9 +119,9 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
         200
       );
       
-      console.log("Canvas dimensions:", canvas.width, "x", canvas.height);
+      console.log("Final canvas dimensions:", canvas.width, "x", canvas.height);
       
-      // Create blob with fixed type and high quality
+      // Create blob with optimized compression
       return new Promise((resolve, reject) => {
         canvas.toBlob(
           (blob) => {
@@ -131,7 +134,7 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
             resolve(blob);
           },
           "image/jpeg",
-          0.95
+          0.8  // Slightly more compression for smaller file size
         );
       });
     } catch (error) {

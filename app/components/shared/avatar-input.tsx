@@ -80,6 +80,11 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
                 onLoad={(e) => {
                   const img = e.target as HTMLImageElement;
                   console.log("Avatar loaded with dimensions:", img.naturalWidth, "x", img.naturalHeight);
+                  
+                  // Check if image is not 200x200, log a warning
+                  if (img.naturalWidth !== 200 || img.naturalHeight !== 200) {
+                    console.warn("Avatar image is not 200x200 pixels:", img.naturalWidth, "x", img.naturalHeight);
+                  }
                 }}
                 onError={(e) => {
                   console.error("Avatar image failed to load:", e);

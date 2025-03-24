@@ -20,6 +20,14 @@ export interface Teacher {
   isVisible: boolean;
   avatarUrl: string;
   featuredExpiry?: Date;
+  workHistory?: Array<{
+    position: string;
+    organization: string;
+    startDate: string;
+    endDate: string;
+    description: string;
+    current?: boolean;
+  }>;
 }
 
 /**
@@ -81,6 +89,7 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     isVisible: data.isVisible !== false, // Default to true unless explicitly set to false
     avatarUrl: data.avatarUrl || data.photoURL || '',
     featuredExpiry: featuredExpiry,
+    workHistory: data.workHistory || [],
   };
 };
 

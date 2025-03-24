@@ -132,7 +132,7 @@ export function TeacherCard(props: TeacherCardProps) {
               <span className={cn("text-xs font-medium rounded-full px-2 py-0.5", getModeColor(teachingMode))}>
                 {teachingMode}
               </span>
-              <span className="text-xs text-gray-600">{experience} years</span>
+              <span className="text-xs text-gray-600">{experience || 0} years</span>
             </div>
             {renderStars()}
           </div>
