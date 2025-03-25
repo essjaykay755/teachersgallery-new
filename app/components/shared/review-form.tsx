@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/app/components/shared/button";
 import { Textarea } from "@/app/components/shared/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { Star } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc } from "firebase/firestore";
 
 interface ReviewFormProps {
   teacherId: string;
@@ -20,8 +20,36 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState("");
+  const [reviewerName, setReviewerName] = useState<string | null>(null);
   
   const { user, userProfile } = useAuth();
+  
+  // Fetch user's real name from their profile collection when component mounts
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (!user || !userProfile) return;
+      
+      try {
+        // Determine which collection to query based on user type
+        const collectionName = userProfile.userType === 'parent' ? 'parents' : 'students';
+        const profileDoc = await getDoc(doc(db, collectionName, user.uid));
+        
+        if (profileDoc.exists()) {
+          const data = profileDoc.data();
+          // Use name or fullName field (check both to be safe)
+          const name = data.name || data.fullName || null;
+          if (name) {
+            setReviewerName(name);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching reviewer name:", err);
+        // Don't set error - just fall back to displayName if this fails
+      }
+    };
+    
+    fetchUserName();
+  }, [user, userProfile]);
   
   // Direct implementation to submit a review using Firestore
   const submitReview = async (reviewData: any) => {
@@ -29,10 +57,10 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
       console.log("Directly submitting review to Firestore:", reviewData);
       const reviewsCollection = collection(db, 'reviews');
       
-      // Add the review with serverTimestamp
+      // Add the review with a regular Date instead of serverTimestamp
       const docRef = await addDoc(reviewsCollection, {
         ...reviewData,
-        createdAt: serverTimestamp()
+        createdAt: new Date()
       });
       
       console.log("Review added successfully with ID:", docRef.id);
@@ -66,11 +94,8 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
       setError("");
       setDebugInfo("");
       
-      // Get name from userProfile based on user type
-      let reviewerName = "Anonymous";
-      if (user.displayName) {
-        reviewerName = user.displayName;
-      }
+      // Use fetched name with fallbacks
+      let displayName = reviewerName || user.displayName || 'Anonymous';
       
       // Simplify avatar handling to avoid type errors
       let avatarUrl = user.photoURL || undefined;
@@ -83,13 +108,14 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
       console.log("Preparing review data:", {
         teacherId,
         reviewerId: user.uid,
-        userType: reviewerType
+        userType: reviewerType,
+        displayName: displayName
       });
       
       const reviewData = {
         teacherId,
         reviewerId: user.uid,
-        reviewerName,
+        reviewerName: displayName,
         reviewerType,
         rating: Number(rating),
         comment: comment.trim()

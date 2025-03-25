@@ -33,72 +33,85 @@ const reviewConverter = (doc: QueryDocumentSnapshot<DocumentData>): Review => {
 };
 
 /**
- * Gets reviews for a specific teacher with a more basic approach
+ * Gets reviews for a specific teacher with enhanced error handling
  */
 export const getTeacherReviews = async (teacherId: string): Promise<Review[]> => {
   try {
+    if (!teacherId) {
+      console.warn('getTeacherReviews called with empty teacherId');
+      return [];
+    }
+    
     console.log(`Fetching reviews for teacher: ${teacherId}`);
     
-    // Using a more reliable approach to query reviews
-    const reviewsCollection = collection(db, 'reviews');
-    
-    // First try a basic query with just the teacherId filter
+    // Using a single simple query approach with error handling
     try {
-      const basicQuery = query(reviewsCollection, where('teacherId', '==', teacherId));
-      const snapshot = await getDocs(basicQuery);
+      const reviewsCollection = collection(db, 'reviews');
+      const reviewsQuery = query(reviewsCollection, where('teacherId', '==', teacherId));
       
+      const snapshot = await getDocs(reviewsQuery);
       console.log(`Successfully fetched ${snapshot.docs.length} reviews`);
       
-      // Convert and sort in memory to avoid index issues
-      const reviews = snapshot.docs.map(reviewConverter);
+      if (snapshot.empty) {
+        return [];
+      }
       
-      return reviews.sort((a, b) => {
-        // Defensive sorting that handles missing or invalid dates
-        const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
-        const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
-        return timeB - timeA; // Descending order (newest first)
+      // Convert and sort in memory with defensive programming to avoid errors
+      const reviews = snapshot.docs.map(doc => {
+        try {
+          return reviewConverter(doc);
+        } catch (docParseError) {
+          console.error('Error parsing review document:', docParseError);
+          // Return a minimal valid review object instead of failing completely
+          return {
+            id: doc.id,
+            teacherId: teacherId,
+            reviewerId: '',
+            reviewerName: 'Anonymous',
+            reviewerType: 'student' as const,
+            rating: 5,
+            comment: 'Error loading review content',
+            createdAt: new Date(),
+          };
+        }
       });
       
-    } catch (primaryError) {
-      console.error('Error with primary query approach:', primaryError);
+      // Defensive sorting that handles invalid dates
+      return reviews.sort((a, b) => {
+        // Ensure both dates are valid before comparison
+        const timeA = a.createdAt instanceof Date && !isNaN(a.createdAt.getTime()) 
+          ? a.createdAt.getTime() 
+          : 0;
+        const timeB = b.createdAt instanceof Date && !isNaN(b.createdAt.getTime()) 
+          ? b.createdAt.getTime() 
+          : 0;
+        return timeB - timeA; // Descending order (newest first)
+      });
+    } catch (queryError) {
+      console.error('Error querying reviews:', queryError);
       
-      // If the primary approach fails, try an even more basic approach
-      try {
-        // Get all reviews (limited to a reasonable number)
-        const fallbackQuery = query(reviewsCollection, limit(100));
-        const allDocs = await getDocs(fallbackQuery);
-        
-        // Filter in memory
-        const filteredDocs = allDocs.docs.filter(
-          doc => doc.data().teacherId === teacherId
-        );
-        
-        console.log(`Fallback query: Found ${filteredDocs.length} reviews for teacher`);
-        
-        // Convert and sort
-        const reviews = filteredDocs.map(reviewConverter);
-        return reviews.sort((a, b) => {
-          const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
-          const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
-          return timeB - timeA;
-        });
-        
-      } catch (fallbackError) {
-        console.error('Even fallback query failed:', fallbackError);
-        throw fallbackError;
-      }
+      // Don't propagate Firebase errors to UI - return empty array instead
+      return [];
     }
   } catch (error) {
     console.error('Fatal error in getTeacherReviews:', error);
-    throw error;
+    
+    // Don't propagate errors to UI
+    return [];
   }
 };
 
 /**
- * Adds a new review for a teacher
+ * Adds a new review for a teacher with enhanced error handling
  */
 export const addTeacherReview = async (review: Omit<Review, 'id' | 'createdAt'>): Promise<string> => {
   try {
+    console.log('Starting review submission process with data:', { 
+      teacherId: review.teacherId,
+      reviewerId: review.reviewerId,
+      reviewerType: review.reviewerType
+    });
+    
     // Sanitize and validate review data
     const sanitizedReview = {
       teacherId: review.teacherId || '',
@@ -130,36 +143,50 @@ export const addTeacherReview = async (review: Omit<Review, 'id' | 'createdAt'>)
       throw new Error('Review comment is required');
     }
     
+    // Check if reviewer is trying to review themselves
+    if (sanitizedReview.reviewerId === sanitizedReview.teacherId) {
+      throw new Error('You cannot review your own profile');
+    }
+    
+    // Verify reviewer type is valid
+    if (sanitizedReview.reviewerType !== 'student' && sanitizedReview.reviewerType !== 'parent') {
+      throw new Error('Only students and parents can submit reviews');
+    }
+    
+    console.log('Review data passed validation, proceeding to write to Firestore');
+    
     const reviewsRef = collection(db, 'reviews');
     
-    try {
-      // Try with serverTimestamp first
-      const docRef = await addDoc(reviewsRef, {
-        ...sanitizedReview,
-        createdAt: serverTimestamp()
-      });
-      
-      // Update teacher's average rating
-      await updateTeacherRating(sanitizedReview.teacherId);
-      
-      return docRef.id;
-    } catch (timestampError) {
-      console.error('Error with serverTimestamp, trying fallback:', timestampError);
-      
-      // Fallback to regular Date if serverTimestamp fails
-      const docRef = await addDoc(reviewsRef, {
-        ...sanitizedReview,
-        createdAt: new Date()
-      });
-      
-      // Update teacher's average rating
-      await updateTeacherRating(sanitizedReview.teacherId);
-      
-      return docRef.id;
-    }
-  } catch (error) {
+    // Use a regular Date consistently
+    const docRef = await addDoc(reviewsRef, {
+      ...sanitizedReview,
+      createdAt: new Date()
+    });
+    
+    console.log('Review successfully added with ID:', docRef.id);
+    
+    // Try to update teacher's rating, but don't block if it fails
+    // Use setTimeout to make this non-blocking and prevent Firebase errors from showing to the user
+    setTimeout(() => {
+      updateTeacherRating(sanitizedReview.teacherId)
+        .catch(ratingError => {
+          console.error('Error updating teacher rating, but review was created:', ratingError);
+        });
+    }, 100);
+    
+    return docRef.id;
+  } catch (error: any) {
     console.error('Error adding review:', error);
-    throw error;
+    
+    // Enhanced error handling with clearer messages
+    if (error.code === 'permission-denied') {
+      console.error('Firebase permission denied error. Check Firestore rules for reviews collection.');
+      throw new Error('You do not have permission to submit reviews. Please make sure you are logged in with a student or parent account.');
+    } else if (error.code?.includes('firestore')) {
+      throw new Error(`Firebase error: ${error.message || 'Unknown Firebase error'}`);
+    } else {
+      throw new Error(`Failed to submit review: ${error.message || 'Unknown error'}`);
+    }
   }
 };
 
@@ -168,9 +195,17 @@ export const addTeacherReview = async (review: Omit<Review, 'id' | 'createdAt'>)
  */
 export const updateTeacherRating = async (teacherId: string): Promise<number> => {
   try {
-    const reviews = await getTeacherReviews(teacherId);
+    // Get all reviews for this teacher
+    let reviews: Review[] = [];
     
-    if (reviews.length === 0) {
+    try {
+      reviews = await getTeacherReviews(teacherId);
+    } catch (error) {
+      console.error('Error fetching reviews for rating calculation:', error);
+      return 0;
+    }
+    
+    if (!reviews || reviews.length === 0) {
       return 0;
     }
     
@@ -179,56 +214,62 @@ export const updateTeacherRating = async (teacherId: string): Promise<number> =>
     const averageRating = totalRating / reviews.length;
     const roundedRating = Math.round(averageRating * 10) / 10; // Round to 1 decimal place
     
-    // Update teacher's rating in Firestore
-    // First try the teachers collection
-    try {
-      const teacherRef = doc(db, 'teachers', teacherId);
-      const teacherDoc = await getDoc(teacherRef);
+    let updateSuccessful = false;
+    
+    // Try to update teacher document in different collections
+    const collectionsToTry = ['teachers', 'users', 'profiles'];
+    
+    for (const collectionName of collectionsToTry) {
+      if (updateSuccessful) break;
       
-      if (teacherDoc.exists()) {
-        await updateTeacherDocument(teacherRef, roundedRating, reviews.length);
-        return roundedRating;
+      try {
+        const docRef = doc(db, collectionName, teacherId);
+        const docSnapshot = await getDoc(docRef);
+        
+        if (docSnapshot.exists()) {
+          try {
+            await updateDoc(docRef, {
+              rating: roundedRating,
+              reviews: reviews.length
+            });
+            console.log(`Successfully updated rating in ${collectionName} collection.`);
+            updateSuccessful = true;
+          } catch (updateError) {
+            console.error(`Error updating rating in ${collectionName}:`, updateError);
+            
+            // Try with string values as fallback
+            try {
+              await updateDoc(docRef, {
+                rating: String(roundedRating),
+                reviews: String(reviews.length)
+              });
+              console.log(`Successfully updated rating (as strings) in ${collectionName} collection.`);
+              updateSuccessful = true;
+            } catch (stringUpdateError) {
+              console.error(`Error updating rating as strings in ${collectionName}:`, stringUpdateError);
+            }
+          }
+        }
+      } catch (collectionError) {
+        console.error(`Error checking ${collectionName} collection:`, collectionError);
       }
-    } catch (error) {
-      console.error('Error updating teacher in teachers collection:', error);
     }
     
-    // Try the users collection if teachers collection update failed
-    try {
-      const userRef = doc(db, 'users', teacherId);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        await updateTeacherDocument(userRef, roundedRating, reviews.length);
-        return roundedRating;
-      }
-    } catch (error) {
-      console.error('Error updating teacher in users collection:', error);
+    if (!updateSuccessful) {
+      console.warn(`Could not update rating for teacher ${teacherId} in any collection.`);
     }
     
-    // Try the profiles collection as a last resort
-    try {
-      const profileRef = doc(db, 'profiles', teacherId);
-      const profileDoc = await getDoc(profileRef);
-      
-      if (profileDoc.exists()) {
-        await updateTeacherDocument(profileRef, roundedRating, reviews.length);
-        return roundedRating;
-      }
-    } catch (error) {
-      console.error('Error updating teacher in profiles collection:', error);
-    }
-    
-    console.warn(`Could not find teacher document to update rating for teacher ${teacherId}`);
     return roundedRating;
   } catch (error) {
-    console.error('Error updating teacher rating:', error);
-    throw error;
+    console.error('Error in updateTeacherRating:', error);
+    // Don't throw the error upward to avoid breaking the review submission flow
+    return 0;
   }
 };
 
 /**
  * Updates teacher's rating in Firestore safely - checks if document exists first
+ * This function is deprecated and kept for reference only
  */
 const updateTeacherDocument = async (docRef: any, rating: number, reviewCount: number) => {
   try {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, limit } from 'firebase/firestore';
 
 // Simple admin route to create review indexes by adding a sample review
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
         reviewerType: 'student',
         rating: 5,
         comment: 'This is a test review to initialize Firestore indexes.',
-        createdAt: serverTimestamp()
+        createdAt: new Date()
       });
       
       return NextResponse.json({ 

@@ -90,10 +90,25 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    // UPDATED: SIMPLIFIED REVIEWS RULES FOR TESTING
+    // Properly secured reviews rules
     match /reviews/{reviewId} {
-      // Allow unrestricted access for testing
-      allow read, write: if true;
+      // Anyone can read reviews
+      allow read: if true;
+      
+      // Allow creation of reviews by authenticated users who are not reviewing themselves
+      allow create: if request.auth != null && 
+                   request.resource.data.reviewerId == request.auth.uid && 
+                   request.resource.data.teacherId != request.auth.uid &&
+                   (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == "student" || 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == "parent");
+      
+      // Allow users to edit their own reviews
+      allow update: if request.auth != null && 
+                   resource.data.reviewerId == request.auth.uid;
+                   
+      // Allow users to delete their own reviews
+      allow delete: if request.auth != null && 
+                   resource.data.reviewerId == request.auth.uid;
     }
   }
 } 

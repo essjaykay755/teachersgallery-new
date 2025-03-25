@@ -6,149 +6,79 @@ import { Star } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 import { useAuth } from "@/lib/auth-context";
 import { formatDistanceToNow } from "date-fns";
-import { getFirestore, collection, query, where, getDocs, limit, addDoc, serverTimestamp } from "firebase/firestore";
-import { getApp } from "firebase/app";
-import { Textarea } from "@/app/components/shared/textarea";
+import { ReviewForm } from "./ReviewForm";
+import { getTeacherReviews, Review } from "@/lib/review-service";
 
 interface ReviewsSectionProps {
   teacherId: string;
-}
-
-interface Review {
-  id: string;
-  teacherId: string;
-  reviewerId: string;
-  reviewerName: string;
-  reviewerType: string;
-  reviewerAvatarUrl?: string;
-  rating: number;
-  comment: string;
-  createdAt: Date;
 }
 
 export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { user, userProfile } = useAuth();
   
-  // Direct implementation to fetch reviews
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchReviews = async () => {
       try {
+        if (!isMounted) return;
         setIsLoading(true);
         setError("");
-        setDebugInfo("");
         
         if (!teacherId) {
           setError("Teacher ID is missing");
           return;
         }
         
-        // Get a direct reference to Firestore
-        const db = getFirestore(getApp());
+        // Get reviews using the service with a timeout to avoid Firebase errors showing to users
+        let reviewsList: Review[] = [];
         
-        // Use a simple query to get all reviews
-        const reviewsCollection = collection(db, 'reviews');
-        const snapshot = await getDocs(query(reviewsCollection));
+        try {
+          reviewsList = await Promise.race([
+            getTeacherReviews(teacherId),
+            new Promise<Review[]>((_, reject) => 
+              setTimeout(() => reject(new Error("Timeout fetching reviews")), 10000)
+            ) as Promise<Review[]>
+          ]);
+        } catch (fetchError) {
+          console.error("Error during review fetch:", fetchError);
+          // Don't set UI error for timeouts or temporary Firebase issues
+          reviewsList = [];
+        }
         
-        // Filter and convert reviews
-        const reviewsList: Review[] = [];
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.teacherId === teacherId) {
-            const reviewDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
-            reviewsList.push({
-              id: doc.id,
-              teacherId: data.teacherId || '',
-              reviewerId: data.reviewerId || '',
-              reviewerName: data.reviewerName || 'Anonymous',
-              reviewerType: data.reviewerType || 'student',
-              reviewerAvatarUrl: data.reviewerAvatarUrl || '',
-              rating: typeof data.rating === 'number' ? data.rating : 5,
-              comment: data.comment || '',
-              createdAt: reviewDate,
-            });
-          }
-        });
-        
-        // Sort by date
-        reviewsList.sort((a, b) => {
-          const timeA = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
-          const timeB = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
-          return timeB - timeA;
-        });
-        
+        if (!isMounted) return;
         setReviews(reviewsList);
       } catch (err: any) {
         console.error("Error fetching reviews:", err);
-        setError("Unable to load reviews. Please try again later.");
-        setDebugInfo(JSON.stringify(err, null, 2));
+        if (!isMounted) return;
+        
+        // Only show user-friendly errors to users, not Firebase internal errors
+        const userMessage = "Unable to load reviews at this time. Please try again later.";
+        setError(userMessage);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
     
     fetchReviews();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, [teacherId, refreshTrigger]);
   
-  const handleSubmitReview = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!user || !userProfile) {
-      setError("You must be logged in to leave a review");
-      return;
-    }
-    
-    if (!comment.trim()) {
-      setError("Please enter a review comment");
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      setError("");
-      
-      // Get a direct reference to Firestore
-      const db = getFirestore(getApp());
-      const reviewsCollection = collection(db, 'reviews');
-      
-      // Prepare review data
-      const reviewData = {
-        teacherId,
-        reviewerId: user.uid,
-        reviewerName: user.displayName || 'Anonymous',
-        reviewerType: userProfile.userType || 'student',
-        rating: Number(rating),
-        comment: comment.trim(),
-        createdAt: serverTimestamp()
-      };
-      
-      // Add avatar if available
-      if (user.photoURL) {
-        Object.assign(reviewData, { reviewerAvatarUrl: user.photoURL });
-      }
-      
-      // Add directly to Firestore
-      await addDoc(reviewsCollection, reviewData);
-      
-      // Reset form and refresh reviews
-      setComment("");
-      setRating(5);
-      setShowForm(false);
-      setRefreshTrigger(prev => prev + 1);
-    } catch (err) {
-      console.error("Error submitting review:", err);
-      setError("Failed to submit review. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleReviewSuccess = () => {
+    setShowForm(false);
+    // Trigger refresh to show the new review
+    setRefreshTrigger((prev) => prev + 1);
   };
   
   // Safe formatter for review dates
@@ -166,10 +96,33 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
     return name.charAt(0).toUpperCase();
   };
 
+  // Calculate average rating
+  const averageRating = reviews.length > 0
+    ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10) / 10
+    : 0;
+
   return (
-    <div className="py-6">
+    <div className="py-2">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold">Student Reviews</h2>
+        <div>
+          {reviews.length > 0 && (
+            <div className="flex items-center mt-1">
+              <div className="flex mr-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-4 w-4 ${
+                      star <= Math.round(averageRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm text-gray-600">
+                {averageRating.toFixed(1)} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+              </span>
+            </div>
+          )}
+        </div>
         
         {user && !showForm && (
           <Button onClick={() => setShowForm(true)}>
@@ -180,65 +133,12 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
       
       {/* Review Form */}
       {showForm && (
-        <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-          <h3 className="text-xl font-bold mb-4">Write a Review</h3>
-          
-          <form onSubmit={handleSubmitReview}>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Your Rating</label>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    className="focus:outline-none"
-                  >
-                    <Star
-                      className={`w-6 h-6 ${
-                        star <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <label htmlFor="comment" className="block text-sm font-medium mb-2">
-                Your Review
-              </label>
-              <Textarea
-                id="comment"
-                placeholder="Share your experience with this teacher..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={4}
-                className="w-full"
-              />
-            </div>
-            
-            {error && (
-              <div className="mb-4 text-red-500 text-sm">{error}</div>
-            )}
-            
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowForm(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting || !comment.trim()}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Review"}
-              </Button>
-            </div>
-          </form>
+        <div className="mb-8">
+          <ReviewForm 
+            teacherId={teacherId}
+            onSuccess={handleReviewSuccess}
+            onCancel={() => setShowForm(false)}
+          />
         </div>
       )}
       
@@ -246,18 +146,25 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
       {error && !showForm && (
         <div className="py-8 text-center">
           <div className="text-red-500 mb-4">{error}</div>
-          {debugInfo && (
-            <details className="text-xs text-left bg-gray-100 p-2 rounded mt-4 mx-auto max-w-md">
-              <summary className="cursor-pointer">Debug Information</summary>
-              <pre className="whitespace-pre-wrap break-words">{debugInfo}</pre>
-            </details>
+          {error.includes("permissions") && (
+            <div className="text-sm text-gray-600">
+              Please make sure you are logged in and your account is set up properly.
+              <br />
+              Only students and parents can submit reviews for teachers.
+            </div>
           )}
         </div>
       )}
       
       {/* Loading State */}
-      {isLoading && (
-        <div className="py-8 text-center">Loading reviews...</div>
+      {isLoading && !error && (
+        <div className="py-8 text-center">
+          <div className="animate-pulse flex flex-col items-center">
+            <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          </div>
+        </div>
       )}
       
       {/* No Reviews State */}
@@ -298,11 +205,11 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
                   </div>
                   
                   <div className="mt-1 flex">
-                    {Array.from({ length: 5 }).map((_, i) => (
+                    {[1, 2, 3, 4, 5].map((star) => (
                       <Star
-                        key={i}
+                        key={star}
                         className={`h-4 w-4 ${
-                          i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                          star <= review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
                         }`}
                       />
                     ))}

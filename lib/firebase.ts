@@ -6,7 +6,8 @@ import {
   connectFirestoreEmulator, 
   Firestore, 
   initializeFirestore,
-  FirestoreSettings
+  FirestoreSettings,
+  enableIndexedDbPersistence
 } from "firebase/firestore";
 import { getStorage, connectStorageEmulator, FirebaseStorage } from "firebase/storage";
 
@@ -40,25 +41,19 @@ try {
   // Initialize Firebase services
   auth = getAuth(firebaseApp);
   
-  // Use Firestore with standard configuration - persistence will be enabled
-  // automatically in modern Firebase versions
+  // Use Firestore with standard configuration - disable persistence to avoid errors
   db = getFirestore(firebaseApp);
   
-  // Enable offline persistence for Firestore (with error handling)
-  // Note: This is still used but will be deprecated in future versions
-  if (typeof window !== 'undefined') {
-    // For future update: When Firebase SDK supports FirestoreSettings.cache 
-    // in this version, we can replace this with the new approach
-    import('firebase/firestore').then(({ enableIndexedDbPersistence }) => {
-      enableIndexedDbPersistence(db).catch((err) => {
-        if (err.code === 'failed-precondition') {
-          console.warn('Persistence failed: Multiple tabs open');
-        } else if (err.code === 'unimplemented') {
-          console.warn('Persistence not available in this browser');
-        } else {
-          console.error('Persistence error:', err);
-        }
-      });
+  // Enable offline persistence for Firestore only in production or development (not in testing)
+  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('Firestore persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Firestore persistence not available in this browser');
+      } else {
+        console.error('Firestore persistence error:', err);
+      }
     });
   }
   

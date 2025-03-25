@@ -11,12 +11,15 @@ import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
 import { MessageSquare, Phone, Users, Star, Edit, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
+import { getTeacherReviews } from "@/lib/review-service";
 
 function TeacherDashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const [teacherProfile, setTeacherProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -28,6 +31,19 @@ function TeacherDashboard() {
         
         if (docSnap.exists()) {
           setTeacherProfile(docSnap.data());
+          
+          // Fetch reviews for rating stats
+          try {
+            const reviews = await getTeacherReviews(user.uid);
+            setReviewCount(reviews.length);
+            
+            if (reviews.length > 0) {
+              const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+              setAverageRating(Math.round((totalRating / reviews.length) * 10) / 10);
+            }
+          } catch (reviewError) {
+            console.error("Error fetching reviews:", reviewError);
+          }
         } else {
           // Teacher profile doesn't exist, redirect to onboarding
           router.push("/onboarding/teacher/step1");
@@ -341,8 +357,12 @@ function TeacherDashboard() {
                   <Star className="h-4 w-4 text-gray-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">N/A</div>
-                  <p className="text-xs text-gray-500">From 0 reviews</p>
+                  <div className="text-2xl font-bold">
+                    {reviewCount > 0 ? averageRating.toFixed(1) : 'N/A'}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    From {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                  </p>
                 </CardContent>
               </Card>
             </div>

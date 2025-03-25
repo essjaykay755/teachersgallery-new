@@ -14,8 +14,8 @@ import { db } from '@/lib/firebase';
 import { createPhoneRequestNotification, createMessageNotification } from '@/lib/notification-service';
 import { getOrCreateConversation } from '@/lib/chat-service';
 import { Button } from "@/app/components/shared/button";
-// Temporarily comment out ReviewsSection to isolate the issue
-// import ReviewsSection from "@/app/components/TeacherProfile/ReviewsSection";
+import ReviewsSection from "@/app/components/TeacherProfile/ReviewsSection";
+import { getTeacherReviews, Review } from '@/lib/review-service';
 
 // Define RequestStatus type to match what's in PhoneRequest
 type RequestStatus = 'not_requested' | 'pending' | 'approved' | 'rejected';
@@ -114,6 +114,9 @@ export default function TeacherProfile() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [teacher, setTeacher] = useState<TeacherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsCount, setReviewsCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
   
   const { user, userProfile } = useAuth();
   const isAuthenticated = user !== null;
@@ -143,6 +146,21 @@ export default function TeacherProfile() {
         } as TeacherData;
         
         setTeacher(teacherData);
+        
+        // Fetch reviews for the teacher to display the count and average rating
+        try {
+          const teacherReviews = await getTeacherReviews(teacherId);
+          setReviews(teacherReviews);
+          setReviewsCount(teacherReviews.length);
+          
+          if (teacherReviews.length > 0) {
+            const totalRating = teacherReviews.reduce((sum, review) => sum + review.rating, 0);
+            const avg = Math.round((totalRating / teacherReviews.length) * 10) / 10;
+            setAverageRating(avg);
+          }
+        } catch (reviewError) {
+          console.error("Error fetching reviews:", reviewError);
+        }
         
         // Check if the user is logged in
         if (user) {
@@ -336,6 +354,21 @@ export default function TeacherProfile() {
                 <div className="mr-4 mb-2 md:mb-0">
                   {teacher.experience} {teacher.experience === 1 ? 'year' : 'years'} experience
                 </div>
+                {reviewsCount > 0 && (
+                  <div className="flex items-center">
+                    <div className="flex mr-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= Math.round(averageRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span>{averageRating.toFixed(1)} ({reviewsCount} {reviewsCount === 1 ? 'review' : 'reviews'})</span>
+                  </div>
+                )}
               </div>
               <div className="text-lg font-bold text-blue-600">
                 ₹{teacher.feesPerHour}/hr
@@ -412,8 +445,8 @@ export default function TeacherProfile() {
             
             {activeTab === 'reviews' && (
               <div>
-                <h3 className="text-xl font-semibold mb-4">Student Reviews</h3>
-                <p className="text-gray-500">Reviews are temporarily unavailable</p>
+                <h3 className="text-xl font-semibold mb-4">Reviews</h3>
+                <ReviewsSection teacherId={teacherId} />
               </div>
             )}
           </div>
