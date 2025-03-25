@@ -34,6 +34,16 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Filter states
+  const [subjectFilter, setSubjectFilter] = useState("All Subjects");
+  const [locationFilter, setLocationFilter] = useState("All Locations");
+  const [feeRangeFilter, setFeeRangeFilter] = useState([500]);
+  const [experienceFilter, setExperienceFilter] = useState("Any Experience");
+  const [teachingModeFilter, setTeachingModeFilter] = useState<string[]>([]);
+  
+  // Sort state
+  const [sortOption, setSortOption] = useState("featured");
+  
   // Fetch teachers from Firestore on component mount
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -54,56 +64,141 @@ export default function Home() {
     fetchTeachers();
   }, []);
   
-  // Use useMemo to prevent recreating arrays on every render
-  const sortedTeachers = useMemo(() => {
+  // Apply filters and sorting
+  const filteredAndSortedTeachers = useMemo(() => {
     if (!teachers.length) return [];
     
-    // Teachers are already sorted in the service, but we can add additional sorting here if needed
-    return teachers;
-  }, [teachers]);
+    // First, apply filters
+    let result = [...teachers];
+    
+    // Subject filter
+    if (subjectFilter !== "All Subjects") {
+      result = result.filter(teacher => 
+        teacher.subject === subjectFilter || 
+        (teacher.subjects && teacher.subjects.includes(subjectFilter))
+      );
+    }
+    
+    // Location filter
+    if (locationFilter !== "All Locations") {
+      result = result.filter(teacher => teacher.location === locationFilter);
+    }
+    
+    // Fee range filter
+    if (feeRangeFilter.length > 0) {
+      const maxFee = feeRangeFilter[0];
+      result = result.filter(teacher => {
+        // Get the fee considering both feesPerHour (primary) and feeRange (fallback)
+        const fee = teacher.feesPerHour;
+        
+        // Simple comparison - if fee is less than or equal to maxFee, or if fee is undefined/null
+        // This avoids any type errors when comparing
+        return fee === undefined || fee === null || fee <= maxFee;
+      });
+    }
+    
+    // Experience filter
+    if (experienceFilter !== "Any Experience") {
+      result = result.filter(teacher => {
+        // Skip if no experience data
+        if (teacher.experience === undefined || teacher.experience === null) return false;
+        
+        const exp = teacher.experience;
+        
+        if (experienceFilter === "1-3") {
+          return exp >= 1 && exp <= 3;
+        } else if (experienceFilter === "3-5") {
+          return exp >= 3 && exp <= 5;
+        } else if (experienceFilter === "5-10") {
+          return exp >= 5 && exp <= 10;
+        } else if (experienceFilter === "10+") {
+          return exp >= 10;
+        }
+        return false;
+      });
+    }
+    
+    // Teaching mode filter
+    if (teachingModeFilter.length > 0) {
+      result = result.filter(teacher => {
+        // Check if any selected mode is in the teacher's teaching mode string
+        return teachingModeFilter.some(mode => 
+          teacher.teachingMode && teacher.teachingMode.includes(mode)
+        );
+      });
+    }
+    
+    // Then, apply sorting
+    switch (sortOption) {
+      case "featured":
+        return result.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+      case "rating":
+        return result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      case "experience":
+        return result.sort((a, b) => {
+          const aExp = typeof a.experience === 'number' ? a.experience : 0;
+          const bExp = typeof b.experience === 'number' ? b.experience : 0;
+          return bExp - aExp;
+        });
+      case "priceAsc":
+        return result.sort((a, b) => {
+          const aPrice = a.feesPerHour || 0;
+          const bPrice = b.feesPerHour || 0;
+          return aPrice - bPrice;
+        });
+      case "priceDesc":
+        return result.sort((a, b) => {
+          const aPrice = a.feesPerHour || 0;
+          const bPrice = b.feesPerHour || 0;
+          return bPrice - aPrice;
+        });
+      default:
+        return result;
+    }
+  }, [teachers, subjectFilter, locationFilter, feeRangeFilter, experienceFilter, teachingModeFilter, sortOption]);
 
   // State for pagination and infinite scroll
   const itemsPerPage = 6;
   const [currentPage, setCurrentPage] = useState(1);
-  const [visibleTeachers, setVisibleTeachers] = useState<typeof sortedTeachers>([]);
+  const [visibleTeachers, setVisibleTeachers] = useState<typeof filteredAndSortedTeachers>([]);
   const [hasMore, setHasMore] = useState(true);
   
   // Calculate total pages for pagination
-  const totalPages = Math.ceil(sortedTeachers.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredAndSortedTeachers.length / itemsPerPage);
   
   // Initialize visible teachers
   useEffect(() => {
     let isMounted = true;
     
-    if (sortedTeachers.length === 0) return;
+    if (filteredAndSortedTeachers.length === 0) return;
     
     if (isMobile) {
       // For mobile: Initial load of first batch
       if (isMounted) {
-        setVisibleTeachers(sortedTeachers.slice(0, itemsPerPage));
-        setHasMore(sortedTeachers.length > itemsPerPage);
+        setVisibleTeachers(filteredAndSortedTeachers.slice(0, itemsPerPage));
+        setHasMore(filteredAndSortedTeachers.length > itemsPerPage);
       }
     } else {
       // For desktop: Load current page items
       const indexOfLastItem = currentPage * itemsPerPage;
       const indexOfFirstItem = indexOfLastItem - itemsPerPage;
       if (isMounted) {
-        setVisibleTeachers(sortedTeachers.slice(indexOfFirstItem, indexOfLastItem));
+        setVisibleTeachers(filteredAndSortedTeachers.slice(indexOfFirstItem, indexOfLastItem));
       }
     }
     
     return () => {
       isMounted = false;
     };
-  }, [currentPage, isMobile, sortedTeachers, itemsPerPage]);
+  }, [currentPage, isMobile, filteredAndSortedTeachers, itemsPerPage]);
   
   // Load more teachers for infinite scroll
   const loadMoreTeachers = () => {
     const currentSize = visibleTeachers.length;
-    const newTeachers = sortedTeachers.slice(currentSize, currentSize + itemsPerPage);
+    const newTeachers = filteredAndSortedTeachers.slice(currentSize, currentSize + itemsPerPage);
     setVisibleTeachers(prev => [...prev, ...newTeachers]);
     
-    if (currentSize + itemsPerPage >= sortedTeachers.length) {
+    if (currentSize + itemsPerPage >= filteredAndSortedTeachers.length) {
       setHasMore(false);
     }
   };
@@ -113,6 +208,24 @@ export default function Home() {
     setCurrentPage(pageNumber);
     // Scroll to top of teacher listings when page changes
     document.querySelector('.lg\\:w-3\\/4')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Handle filters reset
+  const handleResetFilters = () => {
+    setSubjectFilter("All Subjects");
+    setLocationFilter("All Locations");
+    setFeeRangeFilter([500]);
+    setExperienceFilter("Any Experience");
+    setTeachingModeFilter([]);
+  };
+
+  // Handle teaching mode filter changes
+  const handleTeachingModeChange = (mode: string, checked: boolean) => {
+    if (checked) {
+      setTeachingModeFilter(prev => [...prev, mode]);
+    } else {
+      setTeachingModeFilter(prev => prev.filter(item => item !== mode));
+    }
   };
 
   // Shared filter content component
@@ -128,7 +241,7 @@ export default function Home() {
           </span>
           <h3 className="font-semibold text-gray-900">Subject</h3>
         </div>
-        <Select defaultValue="All Subjects">
+        <Select value={subjectFilter} onValueChange={setSubjectFilter}>
           <SelectTrigger className="w-full border-gray-300 bg-white text-gray-800 h-10 focus:ring-blue-500 focus:ring-offset-0">
             <SelectValue placeholder="Select a subject" />
           </SelectTrigger>
@@ -139,6 +252,7 @@ export default function Home() {
             <SelectItem value="Chemistry">Chemistry</SelectItem>
             <SelectItem value="English Literature">English Literature</SelectItem>
             <SelectItem value="Bengali Literature">Bengali Literature</SelectItem>
+            <SelectItem value="Computer Science">Computer Science</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -150,16 +264,16 @@ export default function Home() {
           </span>
           <h3 className="font-semibold text-gray-900">Location</h3>
         </div>
-        <Select defaultValue="All Locations">
+        <Select value={locationFilter} onValueChange={setLocationFilter}>
           <SelectTrigger className="w-full border-gray-300 bg-white text-gray-800 h-10 focus:ring-blue-500 focus:ring-offset-0">
             <SelectValue placeholder="Select a location" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All Locations">All Locations</SelectItem>
-            <SelectItem value="Mumbai, Maharashtra">Mumbai, Maharashtra</SelectItem>
-            <SelectItem value="Delhi, NCR">Delhi, NCR</SelectItem>
-            <SelectItem value="Bangalore, Karnataka">Bangalore, Karnataka</SelectItem>
-            <SelectItem value="Kolkata, West Bengal">Kolkata, West Bengal</SelectItem>
+            <SelectItem value="Mumbai">Mumbai</SelectItem>
+            <SelectItem value="Delhi">Delhi</SelectItem>
+            <SelectItem value="Bangalore">Bangalore</SelectItem>
+            <SelectItem value="Kolkata">Kolkata</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -176,10 +290,11 @@ export default function Home() {
         </div>
         <div className="flex items-center justify-between mb-3 px-0.5">
           <span className="text-sm text-gray-700 font-medium">₹500</span>
-          <span className="text-sm text-gray-700 font-medium">₹5000</span>
+          <span className="text-sm text-gray-700 font-medium">₹{feeRangeFilter[0]}</span>
         </div>
         <Slider
-          defaultValue={[1000]}
+          value={feeRangeFilter}
+          onValueChange={setFeeRangeFilter}
           max={5000}
           min={500}
           step={100}
@@ -194,16 +309,16 @@ export default function Home() {
           </span>
           <h3 className="font-semibold text-gray-900">Experience</h3>
         </div>
-        <Select defaultValue="Any Experience">
+        <Select value={experienceFilter} onValueChange={setExperienceFilter}>
           <SelectTrigger className="w-full border-gray-300 bg-white text-gray-800 h-10 focus:ring-blue-500 focus:ring-offset-0">
             <SelectValue placeholder="Select experience" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="Any Experience">Any Experience</SelectItem>
-            <SelectItem value="1-3 years">1-3 years</SelectItem>
-            <SelectItem value="3-5 years">3-5 years</SelectItem>
-            <SelectItem value="5-10 years">5-10 years</SelectItem>
-            <SelectItem value="10+ years">10+ years</SelectItem>
+            <SelectItem value="1-3">1-3 years</SelectItem>
+            <SelectItem value="3-5">3-5 years</SelectItem>
+            <SelectItem value="5-10">5-10 years</SelectItem>
+            <SelectItem value="10+">10+ years</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -221,7 +336,11 @@ export default function Home() {
         </div>
         <div className="space-y-3 mt-2">
           <div className="flex items-center space-x-2">
-            <Checkbox id={isMobileView ? "mobile-online" : "online"} />
+            <Checkbox 
+              id={isMobileView ? "mobile-online" : "online"} 
+              checked={teachingModeFilter.includes("Online")}
+              onCheckedChange={(checked) => handleTeachingModeChange("Online", checked as boolean)}
+            />
             <label 
               htmlFor={isMobileView ? "mobile-online" : "online"} 
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
@@ -230,7 +349,11 @@ export default function Home() {
             </label>
           </div>
           <div className="flex items-center space-x-2">
-            <Checkbox id={isMobileView ? "mobile-offline" : "offline"} />
+            <Checkbox 
+              id={isMobileView ? "mobile-offline" : "offline"} 
+              checked={teachingModeFilter.includes("Offline")}
+              onCheckedChange={(checked) => handleTeachingModeChange("Offline", checked as boolean)}
+            />
             <label 
               htmlFor={isMobileView ? "mobile-offline" : "offline"} 
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
@@ -239,7 +362,11 @@ export default function Home() {
             </label>
           </div>
           <div className="flex items-center space-x-2">
-            <Checkbox id={isMobileView ? "mobile-hybrid" : "hybrid"} />
+            <Checkbox 
+              id={isMobileView ? "mobile-hybrid" : "hybrid"} 
+              checked={teachingModeFilter.includes("Hybrid")}
+              onCheckedChange={(checked) => handleTeachingModeChange("Hybrid", checked as boolean)}
+            />
             <label 
               htmlFor={isMobileView ? "mobile-hybrid" : "hybrid"} 
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
@@ -251,8 +378,27 @@ export default function Home() {
       </div>
       
       {isMobileView && (
+        <div className="pt-4 space-y-3">
+          <Button className="w-full" onClick={() => {}}>Apply Filters</Button>
+          <Button 
+            className="w-full" 
+            variant="outline" 
+            onClick={handleResetFilters}
+          >
+            Reset Filters
+          </Button>
+        </div>
+      )}
+      
+      {!isMobileView && (
         <div className="pt-4">
-          <Button className="w-full">Apply Filters</Button>
+          <Button 
+            className="w-full" 
+            variant="outline" 
+            onClick={handleResetFilters}
+          >
+            Reset Filters
+          </Button>
         </div>
       )}
     </div>
@@ -323,11 +469,11 @@ export default function Home() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-gray-900">All Teachers</h2>
-                <span className="text-xs bg-blue-100 text-blue-600 font-medium rounded-full px-2 py-0.5">{sortedTeachers.length}</span>
+                <span className="text-xs bg-blue-100 text-blue-600 font-medium rounded-full px-2 py-0.5">{filteredAndSortedTeachers.length}</span>
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <span className="text-sm text-gray-600">Sort by:</span>
-                <Select defaultValue="featured">
+                <Select value={sortOption} onValueChange={setSortOption}>
                   <SelectTrigger className="h-9 border-gray-300 bg-white min-w-[140px]">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
@@ -373,7 +519,7 @@ export default function Home() {
             )}
             
             {/* No results state */}
-            {!isLoading && sortedTeachers.length === 0 && (
+            {!isLoading && filteredAndSortedTeachers.length === 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-10 text-center">
                 <GraduationCap className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No teachers found</h3>
