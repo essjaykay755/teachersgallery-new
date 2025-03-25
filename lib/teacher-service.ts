@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import { collection, query, where, getDocs, orderBy, limit, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { getTeacherReviews } from './review-service';
 
 export interface Teacher {
   id: string;
@@ -47,7 +48,11 @@ export interface Teacher {
 const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => {
   const data = doc.data();
   
-  console.log('Teacher document data:', JSON.stringify(data));
+  console.log('Teacher document data for ' + doc.id + ':', data);
+  console.log('Raw teaching mode value:', data.teachingMode);
+  console.log('Raw experience value:', data.experience);
+  console.log('Raw yearsOfExperience value:', data.yearsOfExperience);
+  console.log('Raw rating value:', data.rating);
   
   // Handle different possible field structures
   const getSubject = (): string => {
@@ -84,6 +89,25 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
   const featuredExpiry = hasFeaturedExpiry ? data.featuredExpiry.toDate() : null;
   const isCurrentlyFeatured = isFeatured && (!featuredExpiry || featuredExpiry > new Date());
   
+  const getTeachingModes = (): string => {
+    if (Array.isArray(data.teachingModes)) {
+      return data.teachingModes.join(', ');
+    }
+    if (Array.isArray(data.teachingMode)) {
+      return data.teachingMode.join(', ');
+    }
+    if (typeof data.teachingMode === 'string') {
+      return data.teachingMode;
+    }
+    if (data.mode) {
+      if (Array.isArray(data.mode)) {
+        return data.mode.join(', ');
+      }
+      return String(data.mode);
+    }
+    return 'Online';
+  };
+  
   return {
     id: doc.id,
     name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
@@ -92,11 +116,11 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     location: getLocation(),
     feesPerHour: Number(data.feesPerHour) || 0,
     feeRange: data.feeRange || null,
-    experience: Number(data.experience) || Number(data.yearsOfExperience) || 0,
-    teachingMode: data.teachingMode || data.mode || 'Online',
+    experience: Number(data.experience) || Number(data.yearsOfExperience) || Number(data.experienceYears) || 0,
+    teachingMode: getTeachingModes(),
     educationLevels: getEducationLevels() || [],
-    rating: Number(data.rating) || 0, // Use actual rating or 0 if not available
-    reviews: Number(data.reviewsCount) || Number(data.reviews) || 0,
+    rating: Number(data.rating) || 0, // Only use actual rating from DB, don't generate synthetic ones
+    reviews: Number(data.reviewsCount) || Number(data.reviews) || 0, // Only use actual review count
     students: Number(data.studentsCount) || Number(data.students) || 0,
     isVerified: !!data.isVerified,
     isFeatured: isCurrentlyFeatured,
@@ -191,7 +215,32 @@ export const getTeachers = async (): Promise<Teacher[]> => {
     
     for (const doc of teacherDocs) {
       try {
+        // First get basic teacher data
         const teacher = teacherConverter(doc);
+        
+        // Then fetch actual reviews for this teacher
+        try {
+          const reviews = await getTeacherReviews(teacher.id);
+          
+          if (reviews && reviews.length > 0) {
+            // Calculate average rating from actual reviews
+            const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+            const averageRating = totalRating / reviews.length;
+            const roundedRating = Math.round(averageRating * 10) / 10; // Round to 1 decimal place
+            
+            // Update the teacher object with real rating data
+            teacher.rating = roundedRating;
+            teacher.reviews = reviews.length;
+            
+            console.log(`Updated teacher ${teacher.name} with actual reviews data: rating=${roundedRating}, count=${reviews.length}`);
+          }
+        } catch (reviewError) {
+          console.error(`Error fetching reviews for teacher ${teacher.id}:`, reviewError);
+          // Keep using the default/generated values if there was an error
+        }
+        
+        // Log the final rating that will be displayed
+        console.log(`Teacher ${teacher.id} (${teacher.name}): Final Rating = ${teacher.rating}, Reviews = ${teacher.reviews}`);
         validTeachers.push(teacher);
       } catch (err) {
         console.error(`Error converting teacher document ${doc.id}:`, err);

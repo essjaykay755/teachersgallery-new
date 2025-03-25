@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Star, Check } from "lucide-react";
+import { MapPin, Star, Check, Clock } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/app/components/shared/card";
 import { cn } from "@/lib/utils";
@@ -43,13 +43,15 @@ export function TeacherCard(props: TeacherCardProps) {
     experience = 0,
     teachingMode = "Online",
     educationLevels = [],
-    rating = 4.5,
+    rating = 0,
     reviews = 0,
     isVerified = false,
     isFeatured = false,
     isVisible = true,
     className = "",
   } = props;
+
+  console.log(`TeacherCard ${id} (${name}): experience value:`, experience, typeof experience);
 
   // Display subject either from subjects array or from subject string
   const displaySubject = useMemo(() => {
@@ -77,17 +79,66 @@ export function TeacherCard(props: TeacherCardProps) {
       .toUpperCase().substring(0, 2);
   }, [name]);
   
+  // Process teaching mode to handle different formats
+  const processTeachingMode = useMemo(() => {
+    if (Array.isArray(teachingMode)) {
+      return teachingMode.join(', ');
+    }
+    return teachingMode || 'Online';
+  }, [teachingMode]);
+
+  // Process experience value
+  const processExperience = useMemo(() => {
+    console.log(`Processing experience for ${id} (${name}):`, experience, typeof experience);
+    
+    // Handle string values
+    if (typeof experience === 'string') {
+      const expString = experience as string;
+      
+      // Check if it's a numeric string first
+      const numericValue = Number(expString);
+      if (!isNaN(numericValue)) {
+        return numericValue;
+      }
+      
+      // Handle descriptive strings
+      if (expString.toLowerCase().includes('less than 1')) return 0;
+      if (expString.toLowerCase().includes('1-2')) return 1;
+      if (expString.toLowerCase().includes('3-5')) return 3;
+      if (expString.toLowerCase().includes('6-10')) return 6;
+      if (expString.toLowerCase().includes('more than 10') || 
+          expString.toLowerCase().includes('10+')) return 10;
+      
+      // Try to extract numeric values from strings like "5 years"
+      const match = expString.match(/(\d+)/);
+      if (match && match[1]) {
+        return Number(match[1]);
+      }
+      
+      return 0;
+    }
+    
+    // Handle number values
+    if (typeof experience === 'number' && !isNaN(experience)) {
+      return experience;
+    }
+    
+    // Handle undefined, null, or other invalid types
+    return 0;
+  }, [experience, id, name]);
+
   // Define color for teaching mode badge
   const getModeColor = (mode: string = "") => {
-    switch (mode) {
-      case "Online":
-        return "bg-green-100 text-green-800";
-      case "Offline":
-        return "bg-blue-100 text-blue-800";
-      case "Hybrid":
-        return "bg-purple-100 text-purple-800";
+    const normalizedMode = mode.trim().toLowerCase();
+    switch (normalizedMode) {
+      case "online":
+        return "bg-green-100 text-green-800 border border-green-200";
+      case "student's home":
+        return "bg-blue-100 text-blue-800 border border-blue-200";
+      case "teacher's home":
+        return "bg-purple-100 text-purple-800 border border-purple-200";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 text-gray-800 border border-gray-200";
     }
   };
 
@@ -100,33 +151,37 @@ export function TeacherCard(props: TeacherCardProps) {
 
   // Safe rendering of stars
   const renderStars = () => {
-    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 0;
+    // Use the actual rating from props
+    const safeRating = rating ?? 0;
+    const safeReviews = reviews ?? 0;
     
-    // Only show "No ratings yet" if both rating is 0 and reviews count is 0 or undefined
-    if (safeRating === 0 && reviews === 0) {
+    console.log(`TeacherCard ${id}: Rendering stars with rating:`, safeRating, 'and reviews:', safeReviews);
+    
+    // If no rating exists or no reviews, show "No ratings yet"
+    if (safeRating === 0 || safeReviews === 0) {
       return (
-        <div className="text-sm text-gray-600">
+        <div className="text-sm font-medium text-gray-500">
           No ratings yet
         </div>
       );
     }
     
-    // If reviews count exists but rating is 0, still show stars
-    const displayRating = reviews > 0 && safeRating === 0 ? 4.5 : safeRating;
-    
+    // Show actual star rating with review count
     return (
       <div className="flex items-center">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className={cn(
-              "h-4 w-4",
-              i < Math.floor(displayRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-            )}
-          />
-        ))}
-        <span className="ml-1 text-sm text-gray-600">
-          {displayRating.toFixed(1)} {reviews > 0 && `(${reviews})`}
+        <div className="flex mr-1.5">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <Star
+              key={star}
+              className={cn(
+                "h-4 w-4",
+                star <= Math.round(safeRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-200"
+              )}
+            />
+          ))}
+        </div>
+        <span className="text-sm font-medium text-gray-600">
+          {safeRating.toFixed(1)} <span className="text-xs text-gray-500">({safeReviews})</span>
         </span>
       </div>
     );
@@ -136,55 +191,59 @@ export function TeacherCard(props: TeacherCardProps) {
   if (isVisible === false) return null;
 
   return (
-    <Link href={`/teachers/${id}`} className="block">
-      <Card className={cn("relative overflow-hidden border rounded-lg shadow-sm hover:shadow-md transition-all h-full", className, {
-        "border-blue-300": isFeatured
+    <Link href={`/teachers/${id}`} className="block group">
+      <Card className={cn("relative overflow-hidden border rounded-xl shadow-sm hover:shadow-lg transition-all h-full group-hover:border-blue-200", className, {
+        "border-blue-300 ring-2 ring-blue-100": isFeatured
       })}>
         {isFeatured && (
-          <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-bl-lg">
+          <div className="absolute top-2 right-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm z-10">
             Featured
           </div>
         )}
         <CardHeader className="pb-0">
           <div className="flex items-center space-x-4">
-            <Avatar className="h-16 w-16 border-2 border-gray-200">
+            <Avatar className="h-16 w-16 border-2 border-gray-100 shadow-sm group-hover:border-blue-200 transition-colors">
               <AvatarImage src={avatarUrl} alt={name} />
-              <AvatarFallback className="text-lg bg-blue-700 text-white">{initials}</AvatarFallback>
+              <AvatarFallback className="text-lg bg-gradient-to-br from-blue-500 to-blue-700 text-white">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <div className="flex items-center gap-1">
-                <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{name}</h3>
                 {isVerified && (
-                  <span className="text-blue-600" title="Verified">
-                    <Check className="h-4 w-4" />
+                  <span className="flex items-center justify-center bg-blue-100 text-blue-600 rounded-full h-5 w-5" title="Verified">
+                    <Check className="h-3 w-3" />
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-700 mt-0.5 font-medium">{displaySubject} Teacher</p>
-              <div className="flex items-center text-gray-500 text-xs mt-1">
-                <MapPin className="h-3 w-3 mr-1" />
-                <span>{location}</span>
+              <p className="text-sm font-medium text-gray-700 mt-0.5">{displaySubject} Teacher</p>
+              <div className="flex flex-col text-gray-500 text-xs mt-1.5 space-y-1.5">
+                <div className="flex items-center">
+                  <MapPin className="h-3 w-3 mr-1.5 text-green-500" />
+                  <span className="text-gray-600">{location}</span>
+                </div>
+                <div className="flex items-center">
+                  <Clock className="h-3 w-3 mr-1.5 text-amber-500" />
+                  <span className="text-gray-600">{processExperience > 0 ? `${processExperience} ${processExperience === 1 ? 'year' : 'years'} experience` : 'New teacher'}</span>
+                </div>
               </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-3 pb-2">
-          <div className="flex justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className={cn("text-xs font-medium rounded-full px-2 py-0.5", getModeColor(teachingMode))}>
-                {teachingMode}
+        <CardContent className="pt-4 pb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {processTeachingMode.split(',').map((mode: string, index: number) => (
+              <span key={index} className={cn("text-xs font-medium rounded-full px-3 py-1", getModeColor(mode.trim()))}>
+                {mode.trim()}
               </span>
-              <span className="text-xs text-gray-600">{experience || 0} years</span>
-            </div>
-            {renderStars()}
+            ))}
           </div>
           
           {safeEducationLevels.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-1">
+            <div className="flex flex-wrap gap-1.5 mb-3">
               {safeEducationLevels.map((level, index) => (
                 <span
                   key={`${level}-${index}`}
-                  className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md text-xs"
+                  className="text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-0.5 border border-gray-200"
                 >
                   {level}
                 </span>
@@ -192,9 +251,12 @@ export function TeacherCard(props: TeacherCardProps) {
             </div>
           )}
         </CardContent>
-        <CardFooter className="border-t py-2 bg-gray-50">
-          <div className="w-full text-right">
-            <span className="text-blue-600 font-semibold">{displayFee}/hr</span>
+        <CardFooter className="flex items-center justify-between pt-0 pb-4 border-t border-gray-100 mt-2 group-hover:border-blue-50 transition-colors">
+          <div className="flex-1">
+            {renderStars()}
+          </div>
+          <div className="flex items-center bg-blue-50 px-3 py-1.5 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <span className="text-base font-bold text-blue-600">{displayFee}<span className="text-xs font-normal text-gray-500">/hr</span></span>
           </div>
         </CardFooter>
       </Card>
