@@ -5,6 +5,7 @@ export interface Teacher {
   id: string;
   name: string;
   subject: string;
+  subjects?: string[];
   location: string;
   feesPerHour: number;
   feeRange?: {
@@ -15,11 +16,21 @@ export interface Teacher {
   teachingMode: string;
   educationLevels: string[];
   rating: number;
+  reviews?: number;
+  students?: number;
   isVerified: boolean;
   isFeatured: boolean;
   isVisible: boolean;
   avatarUrl: string;
   featuredExpiry?: Date;
+  about?: string;
+  methodology?: string;
+  achievements?: string[];
+  education?: Array<{
+    year?: string;
+    degree?: string;
+    institution?: string;
+  }>;
   workHistory?: Array<{
     position: string;
     organization: string;
@@ -77,18 +88,26 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     id: doc.id,
     name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
     subject: getSubject(),
+    subjects: Array.isArray(data.subjects) ? data.subjects : (data.subject ? [data.subject] : []),
     location: getLocation(),
     feesPerHour: Number(data.feesPerHour) || 0,
     feeRange: data.feeRange || null,
     experience: Number(data.experience) || Number(data.yearsOfExperience) || 0,
     teachingMode: data.teachingMode || data.mode || 'Online',
     educationLevels: getEducationLevels() || [],
-    rating: Number(data.rating) || 4.8, // Default rating until rating system is implemented
+    rating: Number(data.rating) || 0, // Use actual rating or 0 if not available
+    reviews: Number(data.reviewsCount) || Number(data.reviews) || 0,
+    students: Number(data.studentsCount) || Number(data.students) || 0,
     isVerified: !!data.isVerified,
     isFeatured: isCurrentlyFeatured,
     isVisible: data.isVisible !== false, // Default to true unless explicitly set to false
     avatarUrl: data.avatarUrl || data.photoURL || '',
     featuredExpiry: featuredExpiry,
+    about: data.about || data.bio || data.description || '',
+    methodology: data.methodology || data.teachingMethodology || '',
+    achievements: Array.isArray(data.achievements) ? data.achievements : [],
+    education: Array.isArray(data.education) ? data.education : 
+              (data.education ? [data.education] : []),
     workHistory: data.workHistory || [],
   };
 };

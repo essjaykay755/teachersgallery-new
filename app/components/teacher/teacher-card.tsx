@@ -9,15 +9,23 @@ interface TeacherCardProps {
   id: string;
   name: string;
   avatarUrl?: string;
-  subject: string;
-  location: string;
-  feesPerHour: number;
-  experience: number;
-  teachingMode: string;
-  educationLevels: string[];
-  rating: number;
+  subject?: string;
+  subjects?: string[];
+  location?: string;
+  feesPerHour?: number;
+  feeRange?: { 
+    min: number; 
+    max: number 
+  };
+  experience?: number;
+  teachingMode?: string;
+  educationLevels?: string[];
+  rating?: number;
+  reviews?: number;
   isVerified?: boolean;
   isFeatured?: boolean;
+  isVisible?: boolean;
+  featuredExpiry?: Date;
   className?: string;
 }
 
@@ -28,16 +36,36 @@ export function TeacherCard(props: TeacherCardProps) {
     name = "Unknown Teacher",
     avatarUrl = "",
     subject = "General",
+    subjects = [],
     location = "Not specified",
     feesPerHour = 0,
+    feeRange,
     experience = 0,
     teachingMode = "Online",
     educationLevels = [],
     rating = 4.5,
+    reviews = 0,
     isVerified = false,
     isFeatured = false,
+    isVisible = true,
     className = "",
   } = props;
+
+  // Display subject either from subjects array or from subject string
+  const displaySubject = useMemo(() => {
+    if (subjects && subjects.length > 0) return subjects[0];
+    if (subject) return subject;
+    return "General";
+  }, [subjects, subject]);
+
+  // Display fee as a range if available, otherwise as single value
+  const displayFee = useMemo(() => {
+    if (feeRange && typeof feeRange.min === 'number' && typeof feeRange.max === 'number') {
+      if (feeRange.min === feeRange.max) return `₹${feeRange.min}`;
+      return `₹${feeRange.min} - ₹${feeRange.max}`;
+    }
+    return `₹${feesPerHour}`;
+  }, [feeRange, feesPerHour]);
 
   // Get initials for avatar fallback
   const initials = useMemo(() => {
@@ -48,10 +76,6 @@ export function TeacherCard(props: TeacherCardProps) {
       .join("")
       .toUpperCase().substring(0, 2);
   }, [name]);
-
-  // Create a cache-busted avatar URL to prevent stale images
-  // This version ensures a unique URL even after server restart
-  // Note: This is now handled directly in the AvatarImage component
   
   // Define color for teaching mode badge
   const getModeColor = (mode: string = "") => {
@@ -76,7 +100,20 @@ export function TeacherCard(props: TeacherCardProps) {
 
   // Safe rendering of stars
   const renderStars = () => {
-    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 4.5;
+    const safeRating = typeof rating === 'number' && !isNaN(rating) ? rating : 0;
+    
+    // Only show "No ratings yet" if both rating is 0 and reviews count is 0 or undefined
+    if (safeRating === 0 && reviews === 0) {
+      return (
+        <div className="text-sm text-gray-600">
+          No ratings yet
+        </div>
+      );
+    }
+    
+    // If reviews count exists but rating is 0, still show stars
+    const displayRating = reviews > 0 && safeRating === 0 ? 4.5 : safeRating;
+    
     return (
       <div className="flex items-center">
         {[...Array(5)].map((_, i) => (
@@ -84,14 +121,19 @@ export function TeacherCard(props: TeacherCardProps) {
             key={i}
             className={cn(
               "h-4 w-4",
-              i < Math.floor(safeRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+              i < Math.floor(displayRating) ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
             )}
           />
         ))}
-        <span className="ml-1 text-sm text-gray-600">{safeRating.toFixed(1)}</span>
+        <span className="ml-1 text-sm text-gray-600">
+          {displayRating.toFixed(1)} {reviews > 0 && `(${reviews})`}
+        </span>
       </div>
     );
   };
+
+  // Only render card if teacher is visible
+  if (isVisible === false) return null;
 
   return (
     <Link href={`/teachers/${id}`} className="block">
@@ -118,7 +160,7 @@ export function TeacherCard(props: TeacherCardProps) {
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-700 mt-0.5 font-medium">{subject} Teacher</p>
+              <p className="text-sm text-gray-700 mt-0.5 font-medium">{displaySubject} Teacher</p>
               <div className="flex items-center text-gray-500 text-xs mt-1">
                 <MapPin className="h-3 w-3 mr-1" />
                 <span>{location}</span>
@@ -152,7 +194,7 @@ export function TeacherCard(props: TeacherCardProps) {
         </CardContent>
         <CardFooter className="border-t py-2 bg-gray-50">
           <div className="w-full text-right">
-            <span className="text-blue-600 font-semibold">₹{feesPerHour}/hr</span>
+            <span className="text-blue-600 font-semibold">{displayFee}/hr</span>
           </div>
         </CardFooter>
       </Card>

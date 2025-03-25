@@ -75,24 +75,34 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 interface TeacherData {
   id: string;
   name: string;
-  subject?: string;
-  location?: string;
-  feesPerHour?: number;
-  experience?: number;
-  teachingMode?: string;
-  educationLevels?: string[];
-  rating?: number;
-  reviews?: number;
-  students?: number;
-  isVerified?: boolean;
-  isFeatured?: boolean;
-  avatarUrl?: string;
-  about?: string;
-  methodology?: string;
-  subjects?: string[];
-  achievements?: string[];
-  feeRange?: { min: number; max: number };
-  workHistory?: Array<{
+  subject: string;
+  location: string;
+  feesPerHour: number;
+  experience: number;
+  teachingMode: string;
+  educationLevels: string[];
+  rating: number;
+  reviews: number;
+  students: number;
+  isVerified: boolean;
+  isFeatured: boolean;
+  avatarUrl: string;
+  about: string;
+  bio?: string;
+  description?: string;
+  professionalSummary?: string;
+  methodology: string;
+  subjects: string[];
+  achievements: string[];
+  feeRange: { min: number; max: number };
+  isVisible: boolean;
+  featuredExpiry?: Date;
+  education?: Array<{
+    year?: string;
+    degree?: string;
+    institution?: string;
+  }>;
+  workHistory: Array<{
     position: string;
     organization: string;
     startDate: string;
@@ -101,6 +111,20 @@ interface TeacherData {
     current?: boolean;
   }>;
 }
+
+// Helper function to convert experience string to number
+const getExperienceNumber = (exp: string | number): number => {
+  if (typeof exp === 'number') return exp;
+  if (typeof exp === 'string') {
+    if (exp === 'Less than 1 year') return 0;
+    if (exp === '1-2 years') return 1;
+    if (exp === '3-5 years') return 3;
+    if (exp === '6-10 years') return 6;
+    if (exp === 'More than 10 years') return 10;
+    return Number(exp) || 0;
+  }
+  return 0;
+};
 
 // Simplified teacher profile component
 export default function TeacherProfile() {
@@ -140,10 +164,106 @@ export default function TeacherProfile() {
           return;
         }
         
+        const data = teacherDoc.data();
+        
+        // Process data with sensible defaults
+        const getSubject = (): string => {
+          if (Array.isArray(data.subjects) && data.subjects.length > 0) return data.subjects[0];
+          if (typeof data.subject === 'string') return data.subject;
+          if (typeof data.primarySubject === 'string') return data.primarySubject;
+          return '';
+        };
+        
+        const getLocation = (): string => {
+          let location = '';
+          let area = '';
+          
+          if (typeof data.location === 'string') location = data.location;
+          if (typeof data.city === 'string') location = data.city;
+          
+          if (Array.isArray(data.areasCovered) && data.areasCovered.length > 0) area = data.areasCovered[0];
+          if (typeof data.area === 'string') area = data.area;
+          
+          if (location && area) return `${location}, ${area}`;
+          return location || area || 'Location not specified';
+        };
+        
+        const getEducationLevels = (): string[] => {
+          if (Array.isArray(data.qualifications)) return data.qualifications;
+          if (Array.isArray(data.educationLevels)) return data.educationLevels;
+          if (Array.isArray(data.levels)) return data.levels;
+          return [];
+        };
+        
+        // Process fee data with sensible defaults
+        const processFeeRange = () => {
+          // If there's a properly structured feeRange
+          if (data.feeRange && typeof data.feeRange === 'object' && 
+              (data.feeRange.min !== undefined || data.feeRange.max !== undefined)) {
+            return {
+              min: Number(data.feeRange.min) || 0,
+              max: Number(data.feeRange.max) || 0
+            };
+          }
+          
+          // If there's only a feesPerHour, create a range with the same min/max
+          if (data.feesPerHour !== undefined) {
+            const fee = Number(data.feesPerHour) || 0;
+            return { min: fee, max: fee };
+          }
+          
+          // Fallback
+          return { min: 0, max: 0 };
+        };
+        
+        // Check for featured status
+        const isFeatured = !!data.isFeatured;
+        const hasFeaturedExpiry = data.featuredExpiry && typeof data.featuredExpiry.toDate === 'function';
+        const featuredExpiry = hasFeaturedExpiry ? data.featuredExpiry.toDate() : null;
+        const isCurrentlyFeatured = isFeatured && (!featuredExpiry || featuredExpiry > new Date());
+        
+        // Process teaching modes
+        const getTeachingModes = (): string => {
+          if (Array.isArray(data.teachingModes)) {
+            return data.teachingModes.join(', ');
+          }
+          if (Array.isArray(data.teachingMode)) {
+            return data.teachingMode.join(', ');
+          }
+          if (typeof data.teachingMode === 'string') {
+            return data.teachingMode;
+          }
+          return 'Online';
+        };
+        
         const teacherData = {
           id: teacherId,
-          ...teacherDoc.data(),
-        } as TeacherData;
+          name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
+          subject: getSubject(),
+          location: getLocation(),
+          feesPerHour: Number(data.feesPerHour) || 0,
+          feeRange: processFeeRange(),
+          experience: getExperienceNumber(data.experience) || getExperienceNumber(data.yearsOfExperience) || 0,
+          teachingMode: getTeachingModes(),
+          educationLevels: getEducationLevels() || [],
+          rating: Number(data.rating) || 0,
+          reviews: Number(data.reviewsCount) || Number(data.reviews) || 0,
+          students: Number(data.studentsCount) || Number(data.students) || 0,
+          isVerified: !!data.isVerified,
+          isFeatured: isCurrentlyFeatured,
+          isVisible: data.isVisible !== false,
+          avatarUrl: data.avatarUrl || data.photoURL || '',
+          about: data.about || data.bio || data.professionalSummary || data.description || '',
+          bio: data.bio || '',
+          description: data.description || '',
+          professionalSummary: data.professionalSummary || '',
+          methodology: data.methodology || data.teachingMethodology || '',
+          subjects: Array.isArray(data.subjects) ? data.subjects : (data.subject ? [data.subject] : []),
+          achievements: Array.isArray(data.achievements) ? data.achievements : [],
+          education: Array.isArray(data.education) ? data.education : [],
+          featuredExpiry: featuredExpiry,
+          workHistory: data.workHistory || [],
+        };
         
         setTeacher(teacherData);
         
@@ -197,6 +317,18 @@ export default function TeacherProfile() {
           isFeatured: false,
           avatarUrl: '',
           about: 'There was an error loading this teacher profile.',
+          isVisible: false,
+          workHistory: [],
+          teachingMode: 'N/A',
+          educationLevels: [],
+          rating: 0,
+          reviews: 0,
+          students: 0,
+          methodology: '',
+          subjects: [],
+          achievements: [],
+          education: [],
+          feeRange: { min: 0, max: 0 }
         });
       } finally {
         setIsLoading(false);
@@ -354,7 +486,7 @@ export default function TeacherProfile() {
                 <div className="mr-4 mb-2 md:mb-0">
                   {teacher.experience} {teacher.experience === 1 ? 'year' : 'years'} experience
                 </div>
-                {reviewsCount > 0 && (
+                {reviewsCount > 0 ? (
                   <div className="flex items-center">
                     <div className="flex mr-1">
                       {[1, 2, 3, 4, 5].map((star) => (
@@ -368,6 +500,8 @@ export default function TeacherProfile() {
                     </div>
                     <span>{averageRating.toFixed(1)} ({reviewsCount} {reviewsCount === 1 ? 'review' : 'reviews'})</span>
                   </div>
+                ) : (
+                  <div className="text-sm text-gray-600">No reviews yet</div>
                 )}
               </div>
               <div className="text-lg font-bold text-blue-600">
@@ -432,14 +566,166 @@ export default function TeacherProfile() {
             {activeTab === 'about' && (
               <div>
                 <h3 className="text-xl font-semibold mb-4">About</h3>
-                <p className="text-gray-700 mb-6">{teacher.about}</p>
+                {teacher.about || teacher.bio || teacher.professionalSummary || teacher.description ? (
+                  <p className="text-gray-700 mb-6">{teacher.about || teacher.bio || teacher.professionalSummary || teacher.description}</p>
+                ) : (
+                  <p className="text-gray-500 mb-6">No information provided.</p>
+                )}
+                
+                {/* Teaching Details */}
+                <div className="mt-8">
+                  <h4 className="text-lg font-semibold mb-3">Teaching Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h5 className="font-medium text-gray-700 mb-2">Subjects</h5>
+                      {teacher.subjects && Array.isArray(teacher.subjects) && teacher.subjects.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {teacher.subjects.map((subject, index) => {
+                            if (typeof subject === 'string') {
+                              return (
+                                <span key={index} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                                  {subject}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">{teacher.subject || 'No subjects specified'}</p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h5 className="font-medium text-gray-700 mb-2">Teaching Mode</h5>
+                      {typeof teacher.teachingMode === 'string' ? (
+                        <div className="flex flex-wrap gap-2">
+                          {teacher.teachingMode.split(',').map((mode: string, index: number) => (
+                            <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm font-medium">
+                              {mode.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-700">Not specified</p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h5 className="font-medium text-gray-700 mb-2">Education Levels</h5>
+                      {teacher.educationLevels && Array.isArray(teacher.educationLevels) && teacher.educationLevels.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {teacher.educationLevels.map((level, index) => {
+                            if (typeof level === 'string') {
+                              return (
+                                <span key={index} className="bg-gray-200 text-gray-800 px-2 py-1 rounded text-sm">
+                                  {level}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No education levels specified</p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h5 className="font-medium text-gray-700 mb-2">Fees</h5>
+                      {teacher.feeRange && teacher.feeRange.min !== undefined && teacher.feeRange.max !== undefined ? (
+                        <p className="text-gray-700">
+                          {teacher.feeRange.min === teacher.feeRange.max ? 
+                            `₹${teacher.feeRange.min} per hour` :
+                            `₹${teacher.feeRange.min} - ₹${teacher.feeRange.max} per hour`}
+                        </p>
+                      ) : (
+                        <p className="text-gray-700">₹{teacher.feesPerHour || 0} per hour</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Teaching Methodology */}
+                {teacher.methodology && (
+                  <div className="mt-8">
+                    <h4 className="text-lg font-semibold mb-3">Teaching Methodology</h4>
+                    <p className="text-gray-700">{teacher.methodology}</p>
+                  </div>
+                )}
+                
+                {/* Education */}
+                {teacher.education && Array.isArray(teacher.education) && teacher.education.length > 0 && (
+                  <div className="mt-8">
+                    <h4 className="text-lg font-semibold mb-3">Education</h4>
+                    <div className="space-y-4">
+                      {teacher.education.map((edu, index) => {
+                        if (typeof edu === 'object' && edu !== null) {
+                          return (
+                            <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                              {edu.degree && <h5 className="font-medium text-gray-800">{edu.degree}</h5>}
+                              {edu.institution && <p className="text-gray-700">{edu.institution}</p>}
+                              {edu.year && <p className="text-sm text-gray-500">{edu.year}</p>}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Achievements */}
+                {teacher.achievements && Array.isArray(teacher.achievements) && teacher.achievements.length > 0 && (
+                  <div className="mt-8">
+                    <h4 className="text-lg font-semibold mb-3">Achievements</h4>
+                    <ul className="list-disc pl-5 space-y-2">
+                      {teacher.achievements.map((achievement, index) => {
+                        if (typeof achievement === 'string') {
+                          return <li key={index} className="text-gray-700">{achievement}</li>;
+                        }
+                        return null;
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
             
             {activeTab === 'experience' && (
               <div>
-                <h3 className="text-xl font-semibold mb-4">Work Experience</h3>
-                <p className="text-gray-500">No work experience information available</p>
+                {/* Teaching Experience Summary */}
+                <div className="bg-gradient-to-r from-blue-50 to-white border-l-4 border-blue-500 p-5 rounded-lg shadow-sm mb-8">
+                  <h4 className="font-semibold text-xl mb-4 text-blue-700">Teaching Experience</h4>
+                  <p className="text-gray-700">
+                    {teacher.experience} {teacher.experience === 1 ? 'year' : 'years'} of teaching experience
+                  </p>
+                </div>
+                
+                <h3 className="text-xl font-semibold mb-4">Work History</h3>
+                {teacher.workHistory && Array.isArray(teacher.workHistory) && teacher.workHistory.length > 0 ? (
+                  <div className="space-y-6">
+                    {teacher.workHistory.map((work, index) => {
+                      if (typeof work === 'object' && work !== null) {
+                        return (
+                          <div key={index} className="border-l-2 border-gray-200 pl-4 pb-4">
+                            <h4 className="font-semibold text-lg">{work.position}</h4>
+                            <p className="text-gray-600">{work.organization}</p>
+                            <p className="text-sm text-gray-500 mt-1">
+                              {work.startDate} - {work.current ? 'Present' : work.endDate}
+                            </p>
+                            {work.description && (
+                              <p className="mt-2 text-gray-700">{work.description}</p>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No work experience information available</p>
+                )}
               </div>
             )}
             

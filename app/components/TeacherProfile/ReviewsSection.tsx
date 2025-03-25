@@ -105,7 +105,7 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
     <div className="py-2">
       <div className="flex items-center justify-between mb-6">
         <div>
-          {reviews.length > 0 && (
+          {reviews.length > 0 ? (
             <div className="flex items-center mt-1">
               <div className="flex mr-2">
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -121,6 +121,8 @@ export default function ReviewsSection({ teacherId }: ReviewsSectionProps) {
                 {averageRating.toFixed(1)} ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
               </span>
             </div>
+          ) : (
+            <div className="text-sm text-gray-600">No reviews yet</div>
           )}
         </div>
         

@@ -358,10 +358,12 @@ function TeacherDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {reviewCount > 0 ? averageRating.toFixed(1) : 'N/A'}
+                    {reviewCount > 0 ? averageRating.toFixed(1) : 'No ratings'}
                   </div>
                   <p className="text-xs text-gray-500">
-                    From {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                    {reviewCount > 0 ? 
+                      `From ${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'}` : 
+                      'No reviews yet'}
                   </p>
                 </CardContent>
               </Card>

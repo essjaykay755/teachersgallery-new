@@ -266,17 +266,23 @@ export default function Home() {
                     id: teacher.id || 'unknown',
                     name: teacher.name || 'Unknown Teacher',
                     subject: teacher.subject || 'General',
+                    subjects: Array.isArray(teacher.subjects) ? teacher.subjects : 
+                             (teacher.subject ? [teacher.subject] : []),
                     location: teacher.location || 'Not specified',
                     feesPerHour: typeof teacher.feesPerHour === 'number' && teacher.feesPerHour > 0 
                       ? teacher.feesPerHour 
-                      : teacher.feeRange?.min || 0,
+                      : 0,
+                    feeRange: teacher.feeRange || undefined,
                     experience: typeof teacher.experience === 'number' ? teacher.experience : 0,
                     teachingMode: teacher.teachingMode || 'Online',
                     educationLevels: Array.isArray(teacher.educationLevels) ? teacher.educationLevels : [],
                     rating: typeof teacher.rating === 'number' ? teacher.rating : 4.5,
+                    reviews: typeof teacher.reviews === 'number' ? teacher.reviews : 0,
                     isVerified: !!teacher.isVerified,
                     isFeatured: !!teacher.isFeatured,
-                    avatarUrl: teacher.avatarUrl || ''
+                    isVisible: teacher.isVisible !== false,
+                    avatarUrl: teacher.avatarUrl || '',
+                    featuredExpiry: teacher.featuredExpiry
                   };
                   
                   return (
@@ -285,15 +291,20 @@ export default function Home() {
                       id={safeTeacher.id}
                       name={safeTeacher.name}
                       subject={safeTeacher.subject}
+                      subjects={safeTeacher.subjects}
                       location={safeTeacher.location}
                       feesPerHour={safeTeacher.feesPerHour}
+                      feeRange={safeTeacher.feeRange}
                       experience={safeTeacher.experience}
                       teachingMode={safeTeacher.teachingMode}
                       educationLevels={safeTeacher.educationLevels}
                       rating={safeTeacher.rating}
+                      reviews={safeTeacher.reviews}
                       isVerified={safeTeacher.isVerified}
                       isFeatured={safeTeacher.isFeatured}
+                      isVisible={safeTeacher.isVisible}
                       avatarUrl={safeTeacher.avatarUrl}
+                      featuredExpiry={safeTeacher.featuredExpiry}
                     />
                   );
                 })}
