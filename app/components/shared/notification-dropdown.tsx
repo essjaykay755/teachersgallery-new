@@ -1,15 +1,24 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCircle, MessageSquare, Phone, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNotifications } from '@/lib/notifications-context';
 import { Notification } from '@/lib/notifications-context';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu";
+import { Button } from "@/app/components/ui/button";
+import { Avatar } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 
 export function NotificationDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   
   // Try/catch the hook usage to prevent app crashes
@@ -29,20 +38,6 @@ export function NotificationDropdown() {
   
   const { notifications, unreadCount, markAsRead, markAllAsRead } = notificationsData;
   const router = useRouter();
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   // Format notification time
   const formatTime = (timestamp: any) => {
@@ -72,9 +67,6 @@ export function NotificationDropdown() {
         // Direct to teacher reviews page
         router.push('/dashboard/teacher/reviews');
       }
-      
-      // Close the dropdown after clicking
-      setIsOpen(false);
     } catch (err) {
       console.error("Error handling notification click:", err);
     }
@@ -99,90 +91,88 @@ export function NotificationDropdown() {
     return (
       <div className="relative">
         <button className="text-white hover:text-blue-300">
-          <Bell className="h-5 w-5" />
+          <Bell className="h-4 w-4" />
         </button>
       </div>
     );
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button 
-        className="text-white hover:text-blue-300 relative"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Notifications"
-      >
-        <Bell className="h-4 w-4" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 rounded-full w-4 h-4 text-xs flex items-center justify-center text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
-      
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg overflow-hidden z-50">
-          <div className="flex items-center justify-between py-2 px-4 bg-gray-50 border-b">
-            <h3 className="font-medium text-gray-700">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={() => {
-                  try {
-                    markAllAsRead();
-                  } catch (err) {
-                    console.error("Error marking all as read:", err);
-                  }
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                Mark all as read
-              </button>
-            )}
-          </div>
-          
-          <div className="max-h-96 overflow-y-auto">
-            {!notifications || notifications.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">
-                <Bell className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p>No notifications yet</p>
-              </div>
-            ) : (
-              <div>
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`
-                      flex items-start p-4 border-b hover:bg-gray-50 cursor-pointer
-                      ${!notification.isRead ? 'bg-blue-50' : ''}
-                    `}
-                    onClick={() => handleNotificationClick(notification)}
-                  >
-                    <div className="flex-shrink-0 mr-3">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${!notification.isRead ? 'text-blue-800' : 'text-gray-900'}`}>
-                        {notification.title}
-                      </p>
-                      <p className="text-sm text-gray-600 truncate">
-                        {notification.body}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {formatTime(notification.createdAt)}
-                      </p>
-                    </div>
-                    {notification.isRead && (
-                      <div className="ml-2 flex-shrink-0">
-                        <CheckCircle className="h-4 w-4 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="text-white hover:text-blue-300 relative focus:outline-none" aria-label="Notifications">
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <Badge variant="destructive" className="absolute -top-1 -right-1 px-1 w-4 h-4 text-[10px] flex items-center justify-center">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Badge>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80">
+        <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-t-md">
+          <DropdownMenuLabel className="font-medium text-gray-700 py-0">Notifications</DropdownMenuLabel>
+          {unreadCount > 0 && (
+            <Button
+              onClick={() => {
+                try {
+                  markAllAsRead();
+                } catch (err) {
+                  console.error("Error marking all as read:", err);
+                }
+              }}
+              variant="ghost"
+              size="sm"
+              className="text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2"
+            >
+              Mark all as read
+            </Button>
+          )}
         </div>
-      )}
-    </div>
+        <DropdownMenuSeparator className="mb-0" />
+        
+        <div className="max-h-[28rem] overflow-y-auto py-1">
+          {!notifications || notifications.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">
+              <Bell className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>No notifications yet</p>
+            </div>
+          ) : (
+            <div>
+              {notifications.map((notification) => (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className={`
+                    p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 h-auto flex items-start
+                    ${!notification.isRead ? 'bg-blue-50/50' : ''}
+                  `}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <div className="flex-shrink-0 mr-3">
+                    {getNotificationIcon(notification.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${!notification.isRead ? 'text-blue-800' : 'text-gray-900'}`}>
+                      {notification.title}
+                    </p>
+                    <p className="text-sm text-gray-600 truncate">
+                      {notification.body}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatTime(notification.createdAt)}
+                    </p>
+                  </div>
+                  {notification.isRead && (
+                    <div className="ml-2 flex-shrink-0">
+                      <CheckCircle className="h-4 w-4 text-gray-400" />
+                    </div>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </div>
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 } 

@@ -10,6 +10,15 @@ import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "@/app/components/shared/notification-dropdown";
 import { NotificationsProvider } from "@/lib/notifications-context";
 import ClientOnly from "@/app/components/client-only";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
 
 interface NavbarProps {
   className?: string;
@@ -146,64 +155,58 @@ export function Navbar({ className }: NavbarProps) {
             {user ? (
               <div className="flex items-center gap-4 relative">
                 {renderNotificationComponents()}
-                <div className="relative">
-                  <button 
-                    onClick={toggleProfileMenu}
-                    className="flex items-center focus:outline-none transition-transform hover:scale-105 duration-200"
-                  >
-                    <div className="h-8 w-8 rounded-full bg-indigo-500 flex items-center justify-center text-white shadow-md">
-                      <span className="text-sm">
-                        {user.email?.substring(0, 2).toUpperCase() || "U"}
-                      </span>
-                    </div>
-                  </button>
-                  
-                  {isProfileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 py-2 bg-white rounded-lg shadow-xl z-50 text-gray-800 animate-fadeIn">
-                      <div className="px-4 py-2 border-b border-gray-200">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="focus:outline-none transition-transform hover:scale-105 duration-200">
+                      <Avatar className="h-8 w-8 cursor-pointer">
+                        <AvatarImage src="" alt={user.email || "User"} />
+                        <AvatarFallback className="bg-indigo-500 text-white">
+                          {user.email?.substring(0, 2).toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 mt-1">
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium text-gray-800">{user.email}</p>
                         {userProfile && (
                           <p className="text-xs text-gray-500 capitalize">{userProfile.userType}</p>
                         )}
                       </div>
-                      <Link 
-                        href="/dashboard" 
-                        className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
-                      >
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard" className="cursor-pointer">
                         Dashboard
                       </Link>
-                      <Link 
-                        href="/dashboard/messages" 
-                        className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
-                      >
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/messages" className="cursor-pointer">
                         Messages
                       </Link>
-                      {userProfile?.userType === 'teacher' && (
-                        <Link 
-                          href="/dashboard/phone-requests" 
-                          className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
-                        >
+                    </DropdownMenuItem>
+                    {userProfile?.userType === 'teacher' && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/phone-requests" className="cursor-pointer">
                           Phone Requests
                         </Link>
-                      )}
-                      {userProfile?.userType === 'teacher' && (
-                        <Link 
-                          href="/dashboard/teacher/reviews" 
-                          className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
-                        >
+                      </DropdownMenuItem>
+                    )}
+                    {userProfile?.userType === 'teacher' && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard/teacher/reviews" className="cursor-pointer">
                           Reviews
                         </Link>
-                      )}
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 transition-colors duration-150"
-                      >
-                        <LogOut className="h-4 w-4 mr-2" />
-                        Sign out
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={handleLogout}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ) : (
               <div className="flex items-center gap-3">
