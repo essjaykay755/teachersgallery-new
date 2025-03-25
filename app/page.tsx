@@ -320,15 +320,10 @@ export default function Home() {
           {/* Teachers Grid */}
           <div className="lg:w-3/4">
             {/* All Teachers header */}
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">All Teachers</h2>
-              <span className="text-xs bg-blue-100 text-blue-600 font-medium rounded-full px-2 py-0.5">{sortedTeachers.length}</span>
-            </div>
-            
-            {/* Sort controls */}
             <div className="flex items-center justify-between mb-6">
-              <div className="text-base text-gray-500">
-                {isLoading ? 'Loading teachers...' : `${sortedTeachers.length} teachers found`}
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-gray-900">All Teachers</h2>
+                <span className="text-xs bg-blue-100 text-blue-600 font-medium rounded-full px-2 py-0.5">{sortedTeachers.length}</span>
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
                 <span className="text-sm text-gray-600">Sort by:</span>
