@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit, QueryDocumentSnapshot, DocumentData, getDoc, doc, updateDoc } from 'firebase/firestore';
+import { createReviewNotification } from './notification-service';
 
 export interface Review {
   id: string;
@@ -173,6 +174,18 @@ export const addTeacherReview = async (review: Omit<Review, 'id' | 'createdAt'>)
           console.error('Error updating teacher rating, but review was created:', ratingError);
         });
     }, 100);
+    
+    // Create a notification for the teacher (non-blocking)
+    setTimeout(() => {
+      createReviewNotification(
+        sanitizedReview.teacherId,
+        sanitizedReview.reviewerId,
+        docRef.id,
+        sanitizedReview.rating
+      ).catch(notifError => {
+        console.error('Error creating review notification, but review was created:', notifError);
+      });
+    }, 200);
     
     return docRef.id;
   } catch (error: any) {

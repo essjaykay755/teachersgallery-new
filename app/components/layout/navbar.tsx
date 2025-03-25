@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X, MapPin, User, LogOut, Home, MessageSquare, HelpCircle } from "lucide-react";
+import { Menu, X, MapPin, User, LogOut, Home, MessageSquare, HelpCircle, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
@@ -184,6 +184,14 @@ export function Navbar({ className }: NavbarProps) {
                           className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
                         >
                           Phone Requests
+                        </Link>
+                      )}
+                      {userProfile?.userType === 'teacher' && (
+                        <Link 
+                          href="/dashboard/teacher/reviews" 
+                          className="block px-4 py-2 text-sm hover:bg-gray-100 w-full text-left transition-colors duration-150"
+                        >
+                          Reviews
                         </Link>
                       )}
                       <button

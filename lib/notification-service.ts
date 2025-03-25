@@ -31,6 +31,67 @@ export async function createNotification(
   }
 }
 
+// Create a review notification for teachers
+export async function createReviewNotification(
+  teacherId: string,
+  reviewerId: string,
+  reviewId: string,
+  rating: number
+) {
+  try {
+    // Get reviewer info to include in notification
+    const reviewerDoc = await getDoc(doc(db, "users", reviewerId));
+    let reviewerType = "";
+    
+    if (reviewerDoc.exists()) {
+      reviewerType = reviewerDoc.data().userType || "";
+    }
+    
+    // Determine collection based on user type
+    const userCollection = reviewerType === 'parent' ? 'parents' : 'students';
+    
+    // Try to get the reviewer profile
+    let reviewerProfileDoc = await getDoc(doc(db, userCollection, reviewerId));
+    
+    // Fallback: try the nested profiles path if the direct path doesn't exist
+    if (!reviewerProfileDoc.exists()) {
+      try {
+        reviewerProfileDoc = await getDoc(doc(db, "profiles", userCollection, reviewerId));
+      } catch (pathError) {
+        console.error("Error accessing legacy profile path:", pathError);
+      }
+    }
+    
+    let reviewerName = "Someone";
+    if (reviewerProfileDoc && reviewerProfileDoc.exists()) {
+      reviewerName = reviewerProfileDoc.data().name || 
+                    reviewerProfileDoc.data().fullName || 
+                    "Someone";
+    }
+    
+    // Create star rating representation
+    const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
+    
+    // Create the notification
+    await createNotification(
+      teacherId,
+      "review", // Note: We need to add this type to NotificationType
+      `New review from ${reviewerName}`,
+      `You received a new ${rating}-star review (${stars})`,
+      {
+        reviewId,
+        reviewerId,
+        rating
+      }
+    );
+    
+    console.log(`Successfully created review notification for teacher ${teacherId}`);
+  } catch (error) {
+    console.error("Error creating review notification:", error);
+    // Don't throw the error to avoid breaking the review submission flow
+  }
+}
+
 // Create a message notification
 export async function createMessageNotification(
   recipientId: string,

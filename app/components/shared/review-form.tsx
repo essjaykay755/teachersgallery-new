@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Star } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, doc, getDoc } from "firebase/firestore";
+import { createReviewNotification } from "@/lib/notification-service";
 
 interface ReviewFormProps {
   teacherId: string;
@@ -64,6 +65,19 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
       });
       
       console.log("Review added successfully with ID:", docRef.id);
+      
+      // Create notification for the teacher
+      setTimeout(() => {
+        createReviewNotification(
+          reviewData.teacherId, 
+          reviewData.reviewerId, 
+          docRef.id, 
+          reviewData.rating
+        ).catch(notifError => {
+          console.error('Error creating review notification, but review was created:', notifError);
+        });
+      }, 200);
+      
       return docRef.id;
     } catch (error) {
       console.error("Error directly submitting review:", error);

@@ -8,7 +8,7 @@ import { useAuth, UserType } from "@/lib/auth-context";
 import { 
   User, Settings, MessageSquare, 
   Phone, CreditCard, LogOut,
-  Menu, X, LayoutDashboard, UserCircle
+  Menu, X, LayoutDashboard, UserCircle, Star
 } from "lucide-react";
 
 interface DashboardShellProps {
@@ -51,6 +51,14 @@ export function DashboardShell({ children }: DashboardShellProps) {
       href: "/dashboard/phone-requests",
       icon: Phone,
       active: pathname === "/dashboard/phone-requests",
+    });
+    
+    // Add Reviews section for teachers
+    navigationItems.push({
+      title: "Reviews",
+      href: "/dashboard/teacher/reviews",
+      icon: Star,
+      active: pathname === "/dashboard/teacher/reviews",
     });
   }
   

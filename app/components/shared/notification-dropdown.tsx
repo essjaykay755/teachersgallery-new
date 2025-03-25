@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCircle, MessageSquare, Phone } from 'lucide-react';
+import { Bell, CheckCircle, MessageSquare, Phone, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNotifications } from '@/lib/notifications-context';
 import { Notification } from '@/lib/notifications-context';
@@ -68,6 +68,9 @@ export function NotificationDropdown() {
       } else if (notification.type === 'phone_request') {
         // Always redirect to phone-requests page for any phone request notification
         router.push('/dashboard/phone-requests');
+      } else if (notification.type === 'review') {
+        // Direct to teacher reviews page
+        router.push('/dashboard/teacher/reviews');
       }
       
       // Close the dropdown after clicking
@@ -84,6 +87,8 @@ export function NotificationDropdown() {
         return <MessageSquare className="h-5 w-5 text-blue-500" />;
       case 'phone_request':
         return <Phone className="h-5 w-5 text-green-500" />;
+      case 'review':
+        return <Star className="h-5 w-5 text-yellow-500" />;
       default:
         return <Bell className="h-5 w-5 text-gray-500" />;
     }

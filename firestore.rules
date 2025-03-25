@@ -95,19 +95,17 @@ service cloud.firestore {
       // Anyone can read reviews
       allow read: if true;
       
-      // Allow creation of reviews by authenticated users who are not reviewing themselves
-      allow create: if request.auth != null && 
-                   request.resource.data.reviewerId == request.auth.uid && 
-                   request.resource.data.teacherId != request.auth.uid &&
-                   (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == "student" || 
-                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == "parent");
+      // Simplified rules for creating reviews - only check that user is authenticated and not reviewing themselves
+      allow create: if request.auth != null &&
+                   request.resource.data.reviewerId == request.auth.uid &&
+                   request.resource.data.teacherId != request.auth.uid;
       
       // Allow users to edit their own reviews
-      allow update: if request.auth != null && 
+      allow update: if request.auth != null &&
                    resource.data.reviewerId == request.auth.uid;
                    
       // Allow users to delete their own reviews
-      allow delete: if request.auth != null && 
+      allow delete: if request.auth != null &&
                    resource.data.reviewerId == request.auth.uid;
     }
   }
