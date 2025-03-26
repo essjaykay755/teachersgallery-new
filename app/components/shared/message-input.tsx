@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useRef, ChangeEvent } from 'react';
-import { Send, Paperclip, X, ImageIcon } from 'lucide-react';
+import { Send, Paperclip, X, ImageIcon, FileText } from 'lucide-react';
 import Image from 'next/image';
+import { Button } from "@/app/components/ui/button";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Badge } from "@/app/components/ui/badge";
 
 interface MessageInputProps {
   onSend: (message: string, files?: File[]) => Promise<void>;
@@ -95,88 +98,109 @@ export function MessageInput({
     }
   };
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
   return (
     <div className="w-full">
       {/* File previews */}
       {files.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
+        <div className="flex flex-wrap gap-2 mb-3">
           {files.map((file, index) => (
-            <div key={index} className="relative bg-gray-100 rounded-md p-2 flex items-center">
+            <Badge 
+              key={index} 
+              variant="outline" 
+              className="pl-2 pr-1 py-1 h-auto bg-background flex items-center gap-2 border-muted"
+            >
               {filePreviewUrls[index] ? (
-                <div className="relative w-10 h-10 mr-2">
+                <div className="relative w-5 h-5 mr-1">
                   <Image 
                     src={filePreviewUrls[index]} 
                     alt={file.name} 
-                    width={40} 
-                    height={40} 
-                    className="object-cover rounded-md" 
+                    width={20} 
+                    height={20} 
+                    className="object-cover rounded" 
                   />
                 </div>
               ) : (
-                <Paperclip className="h-5 w-5 mr-2 text-gray-500" />
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <div className="mr-6 max-w-[150px]">
-                <p className="text-xs font-medium truncate">{file.name}</p>
-                <p className="text-xs text-gray-500">
-                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
-              <button
+              
+              <span className="text-xs max-w-[160px] truncate">{file.name}</span>
+              <span className="text-xs text-muted-foreground ml-1">
+                {formatFileSize(file.size)}
+              </span>
+              
+              <Button
                 type="button"
                 onClick={() => removeFile(index)}
-                className="absolute top-1 right-1 p-1 bg-gray-200 rounded-full hover:bg-gray-300"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 rounded-full ml-1 p-0"
               >
                 <X className="h-3 w-3" />
-              </button>
-            </div>
+              </Button>
+            </Badge>
           ))}
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="flex">
-        <div className="flex-1 flex items-center border border-gray-300 rounded-l-md overflow-hidden bg-white">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-gray-500 hover:text-gray-700"
-            disabled={disabled}
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            onChange={handleFileChange}
-            className="hidden"
-            accept="image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            disabled={disabled}
-          />
-          
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyUp={onTyping}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            className="flex-1 py-2 px-3 focus:outline-none resize-none h-[40px] max-h-[120px] overflow-y-auto"
-            rows={1}
-            disabled={disabled}
-          />
+      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <div className="relative flex-1 overflow-hidden rounded-lg border">
+          <div className="flex w-full items-center">
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-md"
+              disabled={disabled}
+              title="Attach files"
+            >
+              <Paperclip className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+              accept="image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={disabled}
+            />
+            
+            <Textarea
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                // Call onTyping on every keystroke to update typing status
+                onTyping();
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message..."
+              className="min-h-10 border-0 focus-visible:ring-0 resize-none py-2 px-3"
+              rows={1}
+              disabled={disabled}
+            />
+          </div>
         </div>
         
-        <button
+        <Button
           type="submit"
           disabled={isLoading || disabled || (!message.trim() && files.length === 0)}
-          className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          size="icon"
+          className="h-10 w-10 rounded-full shrink-0"
         >
           {isLoading ? (
-            <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4" />
           )}
-        </button>
+        </Button>
       </form>
     </div>
   );

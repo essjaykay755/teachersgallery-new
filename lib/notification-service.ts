@@ -93,45 +93,56 @@ export async function createReviewNotification(
 }
 
 // Create a message notification
-export async function createMessageNotification(
-  recipientId: string,
-  senderId: string,
-  conversationId: string,
-  message: string
-) {
+export interface MessageNotificationParams {
+  recipientId: string;
+  senderId: string;
+  senderName?: string;
+  conversationId: string;
+  messageText: string;
+}
+
+export async function createMessageNotification(params: MessageNotificationParams) {
+  const { recipientId, senderId, senderName: providedSenderName, conversationId, messageText } = params;
+  
   try {
-    // Get sender info to include in notification
-    const senderDoc = await getDoc(doc(db, "users", senderId));
-    let senderType = "";
+    let senderName = providedSenderName;
     
-    if (senderDoc.exists()) {
-      senderType = senderDoc.data().userType;
-    }
-    
-    // Get sender profile
-    // Use direct collection path instead of nested path
-    const userCollection = senderType === 'teacher' ? 'teachers' : 
-                          senderType === 'parent' ? 'parents' : 'students';
-    
-    // Try to get the user profile from the direct collection first
-    let senderProfileDoc = await getDoc(doc(db, userCollection, senderId));
-    
-    // Fallback: try the nested profiles path if the direct path doesn't exist
-    if (!senderProfileDoc.exists()) {
-      console.log(`Profile not found in ${userCollection}, trying legacy path...`);
-      try {
-        // Only try this if necessary, with proper error handling
-        senderProfileDoc = await getDoc(doc(db, "profiles", `${senderType}s`, senderId));
-      } catch (pathError) {
-        console.error("Error accessing legacy profile path:", pathError);
+    // If sender name not provided, try to fetch it
+    if (!senderName) {
+      // Get sender info to include in notification
+      const senderDoc = await getDoc(doc(db, "users", senderId));
+      let senderType = "";
+      
+      if (senderDoc.exists()) {
+        senderType = senderDoc.data().userType;
       }
-    }
-    
-    let senderName = "Someone";
-    if (senderProfileDoc && senderProfileDoc.exists()) {
-      senderName = senderProfileDoc.data().name || 
-                  senderProfileDoc.data().fullName || 
-                  "Someone";
+      
+      // Get sender profile
+      // Use direct collection path instead of nested path
+      const userCollection = senderType === 'teacher' ? 'teachers' : 
+                            senderType === 'parent' ? 'parents' : 'students';
+      
+      // Try to get the user profile from the direct collection first
+      let senderProfileDoc = await getDoc(doc(db, userCollection, senderId));
+      
+      // Fallback: try the nested profiles path if the direct path doesn't exist
+      if (!senderProfileDoc.exists()) {
+        console.log(`Profile not found in ${userCollection}, trying legacy path...`);
+        try {
+          // Only try this if necessary, with proper error handling
+          senderProfileDoc = await getDoc(doc(db, "profiles", `${senderType}s`, senderId));
+        } catch (pathError) {
+          console.error("Error accessing legacy profile path:", pathError);
+        }
+      }
+      
+      if (senderProfileDoc && senderProfileDoc.exists()) {
+        senderName = senderProfileDoc.data().name || 
+                    senderProfileDoc.data().fullName || 
+                    "Someone";
+      } else {
+        senderName = "Someone";
+      }
     }
     
     // Create the notification
@@ -139,7 +150,7 @@ export async function createMessageNotification(
       recipientId,
       "message",
       `New message from ${senderName}`,
-      message.length > 50 ? `${message.substring(0, 50)}...` : message,
+      messageText.length > 50 ? `${messageText.substring(0, 50)}...` : messageText,
       {
         conversationId,
         senderId
@@ -151,105 +162,102 @@ export async function createMessageNotification(
 }
 
 // Create a phone request notification
-export async function createPhoneRequestNotification(
-  recipientId: string,
-  requesterId: string,
-  requestId: string,
-  status: string
-) {
+export interface PhoneRequestNotificationParams {
+  teacherId: string;
+  requesterId: string;
+  requesterName?: string;
+  requestId?: string;
+  status?: string;
+  conversationId?: string;
+}
+
+export async function createPhoneRequestNotification(params: PhoneRequestNotificationParams) {
+  const { 
+    teacherId, 
+    requesterId, 
+    requesterName: providedRequesterName, 
+    requestId, 
+    status = "pending",
+    conversationId
+  } = params;
+  
   try {
-    console.log(`Creating phone request notification: recipientId=${recipientId}, requesterId=${requesterId}, requestId=${requestId}, status=${status}`);
+    let requesterName = providedRequesterName;
     
-    // Get requester info
-    const requesterDoc = await getDoc(doc(db, "users", requesterId));
-    let requesterType = "";
-    
-    if (requesterDoc.exists()) {
-      requesterType = requesterDoc.data().userType || "";
-      console.log(`Found requester type from users collection: ${requesterType}`);
-    } else {
-      console.log(`Requester document not found in users collection`);
-    }
-    
-    // If requesterType is empty, try to guess from the status context
-    if (!requesterType) {
-      // If status is 'pending', then the requester is likely a student or parent
-      // If status is 'approved' or 'rejected', the requester is likely receiving notification from a teacher
-      requesterType = status === 'pending' ? 'student' : 'teacher';
-      console.log(`Guessed requester type based on status: ${requesterType}`);
-    }
-    
-    // Normalize type to ensure collection name is correct
-    const userCollection = requesterType === 'teacher' ? 'teachers' : 
-                          requesterType === 'parent' ? 'parents' : 'students';
-    console.log(`Using collection ${userCollection} to fetch requester profile`);
-    
-    // Get requester profile from the direct collection
-    let requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
-    
-    let requesterName = "Someone";
-    if (requesterProfileDoc.exists()) {
-      requesterName = requesterProfileDoc.data().name || 
-                     requesterProfileDoc.data().fullName || 
-                     "Someone";
-      console.log(`Found requester name: ${requesterName}`);
-    } else {
-      console.log(`Requester profile not found in ${userCollection} collection, trying fallback...`);
-      // If no profile found in the direct collection, try looking in general profiles collection
-      try {
-        const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
-        if (fallbackProfileDoc.exists()) {
-          requesterName = fallbackProfileDoc.data().name || 
-                         fallbackProfileDoc.data().fullName || 
-                         "Someone";
-          console.log(`Found requester name from fallback profile: ${requesterName}`);
-        } else {
-          console.log(`Fallback profile not found either`);
+    // If requester name not provided, try to fetch it
+    if (!requesterName) {
+      // Get requester info
+      const requesterDoc = await getDoc(doc(db, "users", requesterId));
+      let requesterType = "";
+      
+      if (requesterDoc.exists()) {
+        requesterType = requesterDoc.data().userType || "";
+      }
+      
+      // If requesterType is empty, default to student
+      if (!requesterType) {
+        requesterType = 'student';
+      }
+      
+      // Normalize type to ensure collection name is correct
+      const userCollection = requesterType === 'teacher' ? 'teachers' : 
+                            requesterType === 'parent' ? 'parents' : 'students';
+      
+      // Get requester profile from the direct collection
+      let requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
+      
+      if (requesterProfileDoc.exists()) {
+        requesterName = requesterProfileDoc.data().name || 
+                       requesterProfileDoc.data().fullName || 
+                       "Someone";
+      } else {
+        // If no profile found in the direct collection, try looking in general profiles collection
+        try {
+          const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
+          if (fallbackProfileDoc.exists()) {
+            requesterName = fallbackProfileDoc.data().name || 
+                           fallbackProfileDoc.data().fullName || 
+                           "Someone";
+          } else {
+            requesterName = "Someone";
+          }
+        } catch (error) {
+          requesterName = "Someone";
+          console.error("Error fetching requester fallback profile:", error);
         }
-      } catch (profileError) {
-        console.error("Error accessing fallback profile:", profileError);
       }
     }
     
-    let title = "";
-    let body = "";
-    
-    // Set title and body based on status
-    if (status === "pending") {
-      title = `New phone number request`;
+    // Determine notification text based on status
+    let title, body;
+    if (status === 'pending') {
+      title = `Phone number requested`;
       body = `${requesterName} has requested your phone number`;
-    } else if (status === "approved") {
+    } else if (status === 'approved') {
       title = `Phone request approved`;
       body = `Your request for phone number has been approved`;
-    } else if (status === "rejected") {
+    } else if (status === 'rejected') {
       title = `Phone request rejected`;
       body = `Your request for phone number has been rejected`;
+    } else {
+      title = `Phone request update`;
+      body = `Your phone request status has been updated`;
     }
-    
-    console.log(`Creating notification with title: "${title}" and body: "${body}"`);
     
     // Create the notification
-    if (title && body) {
-      await createNotification(
-        recipientId,
-        "phone_request",
-        title,
-        body,
-        {
-          requestId,
-          requesterId
-        }
-      );
-      
-      console.log(`Successfully created notification for ${recipientId} about phone request ${requestId}`);
-    } else {
-      console.warn(`No notification created - empty title or body`);
-    }
+    await createNotification(
+      teacherId,
+      "phone_request",
+      title,
+      body,
+      {
+        requesterId,
+        requestId,
+        status,
+        conversationId
+      }
+    );
   } catch (error) {
     console.error("Error creating phone request notification:", error);
-    // Re-throw error only in development to help with debugging
-    if (process.env.NODE_ENV === 'development') {
-      throw error;
-    }
   }
 } 

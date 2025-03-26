@@ -22,8 +22,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Card, CardContent } from "@/app/components/shared/card";
-import { ChevronLeft, Send, Paperclip, Phone, Check, X } from "lucide-react";
+import { ChevronLeft, Send, Paperclip, Phone, Check, X, MessageSquare, Clock, Download, ArrowLeft } from "lucide-react";
 import { createMessageNotification } from "@/lib/notification-service";
 import { createPhoneRequestNotification } from "@/lib/notification-service";
 import { 
@@ -33,6 +32,25 @@ import {
 } from "@/lib/chat-service";
 import { TypingIndicator } from "@/app/components/shared/typing-indicator";
 import { MessageInput } from "@/app/components/shared/message-input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter
+} from "@/app/components/ui/card";
+import {
+  Avatar,
+  AvatarImage,
+  AvatarFallback
+} from "@/app/components/ui/avatar";
+import { Button } from "@/app/components/ui/button";
+import { ScrollArea } from "@/app/components/ui/scroll-area";
+import { Badge } from "@/app/components/ui/badge";
+import { Separator } from "@/app/components/ui/separator";
+import { Skeleton } from "@/app/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
 
 interface Message {
   id: string;
@@ -46,22 +64,10 @@ interface Message {
   requestId?: string;
 }
 
-// Add a helper function for cache-busting after the import statements
-// but before any component definitions
+// Helper function to get a cache-busted URL
 function getCacheBustedUrl(url: string | null | undefined): string {
-  if (!url) return '';
-  
-  // Force a new URL by adding both timestamp and a random number
-  const separator = url.includes('?') ? '&' : '?';
-  const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
-  
-  // Handle already cache-busted URLs 
-  if (url.includes('v=')) {
-    // Replace existing v= parameter with new one
-    return url.replace(/v=[^&]+/, `v=${Date.now()}-${Math.random()}`);
-  }
-  
-  return `${url}${cacheBuster}`;
+  if (!url) return "";
+  return `${url}?t=${new Date().getTime()}`;
 }
 
 function ConversationPage() {
@@ -84,272 +90,308 @@ function ConversationPage() {
   const [phoneRequestLoading, setPhoneRequestLoading] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [hasRequestedNumber, setHasRequestedNumber] = useState(false);
+  const [isRequestingNumber, setIsRequestingNumber] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
-  // Fetch conversation and initial messages
-  useEffect(() => {
-    let isMounted = true;
+  // Memoized check if the other user is typing
+  const isOtherUserTyping = useMemo(() => {
+    if (!otherUser || !typingUsers) return false;
     
-    if (!user || !conversationId) {
-      if (isMounted) setIsLoading(false);
-      return;
-    }
-
-    const fetchConversation = async () => {
-      try {
-        const conversationDoc = await getDoc(doc(db, "conversations", conversationId));
-        
-        if (!conversationDoc.exists()) {
-          if (isMounted) setIsLoading(false);
-          return;
-        }
-        
-        const conversationData = conversationDoc.data();
-        
-        // Check if current user is a participant
-        if (!conversationData.participants?.includes(user.uid)) {
-          router.push("/dashboard/messages");
-          return;
-        }
-        
-        if (isMounted) {
-          setConversation(conversationData);
-          
-          // Get the other participant's ID
-          const otherParticipantId = conversationData.participants?.find(
-            (p: string) => p !== user.uid
-          );
-          
-          if (otherParticipantId && conversationData.participantTypes) {
-            const userType = conversationData.participantTypes[otherParticipantId];
-            
-            if (userType) {
-              const otherUserProfile = await getOtherUserProfile(otherParticipantId, userType);
-              setOtherUser(otherUserProfile);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching conversation:", error);
-        if (isMounted) setIsLoading(false);
-      }
-    };
+    // Check if there's typing data for the other user
+    const typingData = typingUsers[otherUser.id];
+    if (!typingData) return false;
     
-    fetchConversation();
+    // If it's null or false, they're not typing
+    if (typingData === null || typingData === false) return false;
     
-    return () => {
-      isMounted = false;
-    };
-  }, [user, conversationId, router]);
-
-  // Subscribe to messages in real-time
-  useEffect(() => {
-    if (!user || !conversationId) return;
-
-    let unsubscribe: () => void;
-
+    // Check if the timestamp is recent (within the last 5 seconds)
     try {
+      const typingTimestamp = typingData.toDate ? typingData.toDate() : null;
+      if (!typingTimestamp) return false;
+      
+      const now = new Date();
+      const fiveSecondsAgo = new Date(now.getTime() - 5000);
+      return typingTimestamp > fiveSecondsAgo;
+    } catch (err) {
+      console.error("Error checking typing status:", err);
+      return false;
+    }
+  }, [otherUser, typingUsers]);
+
+  useEffect(() => {
+    if (user) {
+      // Initial data fetch
+      fetchConversation();
+      fetchUserProfile();
+    }
+  }, [user, conversationId]);
+
+  useEffect(() => {
+    // Scroll to the bottom when messages change
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    
+    // Check if we need to show the scroll button
+    checkScrollPosition();
+  }, [messages]);
+
+  const checkScrollPosition = () => {
+    if (!messagesContainerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const scrolledUp = scrollHeight - scrollTop - clientHeight > 100;
+    
+    setShowScrollButton(scrolledUp);
+  };
+
+  const scrollToBottom = () => {
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const fetchConversation = async () => {
+    if (!user || !conversationId) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Get conversation document
+      const conversationDoc = await getDoc(doc(db, "conversations", conversationId));
+      
+      if (!conversationDoc.exists()) {
+        console.error("Conversation not found");
+        router.push('/dashboard/messages');
+        return;
+      }
+      
+      const conversationData = conversationDoc.data();
+      setConversation(conversationData);
+      
+      // Find the other user ID
+      const otherUserId = conversationData.participants.find(
+        (p: string) => p !== user.uid
+      );
+      
+      if (!otherUserId) {
+        console.error("Other user not found in conversation");
+        router.push('/dashboard/messages');
+        return;
+      }
+      
+      // Get the other user profile
+      const userType = conversationData.participantTypes[otherUserId] || "unknown";
+      const otherUserProfile = await getOtherUserProfile(otherUserId, userType);
+      
+      if (!otherUserProfile) {
+        console.error("Failed to fetch other user profile");
+        // Set a default profile instead of null
+        setOtherUser({ 
+          id: otherUserId, 
+          type: userType, 
+          name: "Unknown User" 
+        });
+      } else {
+        setOtherUser(otherUserProfile);
+      }
+      
+      // Check phone request status for this conversation
+      checkPhoneRequestStatus();
+      
+      // Set up real-time listener for messages
       const messagesQuery = query(
         collection(db, "conversations", conversationId, "messages"),
         orderBy("createdAt", "asc")
       );
-
-      // Add delay before subscribing to ensure Firestore is ready
-      const timeoutId = setTimeout(() => {
-        try {
-          unsubscribe = onSnapshot(
-            messagesQuery, 
-            { includeMetadataChanges: false }, // Explicitly disable metadata changes
-            // Success callback
-            (snapshot) => {
-              try {
-                const messagesData = snapshot.docs.map((doc) => ({
-                  id: doc.id,
-                  ...doc.data()
-                })) as Message[];
-                
-                setMessages(messagesData);
-                setIsLoading(false);
-              } catch (parseError) {
-                console.error("Error parsing message data:", parseError);
-                setIsLoading(false);
-              }
-            }, 
-            // Error callback
-            (error) => {
-              console.error("Error subscribing to messages:", error.code, error.message);
-              // If permission error, show appropriate message
-              if (error.code === 'permission-denied') {
-                console.log("Permission denied to access this conversation");
-              }
-              setIsLoading(false);
-            }
-          );
-        } catch (innerError) {
-          console.error("Error inside timeout while setting up messages subscription:", innerError);
-          setIsLoading(false);
+      
+      const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+        const messagesData: Message[] = [];
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          messagesData.push({
+            id: doc.id,
+            text: data.text || "",
+            senderId: data.senderId || "",
+            createdAt: data.createdAt,
+            fileUrls: data.fileUrls || [],
+            fileNames: data.fileNames || [],
+            isSystemMessage: data.isSystemMessage || false,
+            systemMessageType: data.systemMessageType || "",
+            requestId: data.requestId || ""
+          });
+        });
+        
+        setMessages(messagesData);
+        
+        // Mark messages as read
+        if (messagesData.length > 0) {
+          markMessagesAsRead(conversationId, user.uid);
         }
-      }, 500); // 500ms delay
-
+      });
+      
+      // Set up typing indicator subscription
+      const typingUnsubscribe = subscribeToTypingStatus(conversationId, (typingData) => {
+        setTypingUsers(typingData);
+      });
+      
+      // Clean up listeners on unmount
       return () => {
-        clearTimeout(timeoutId);
-        if (unsubscribe) {
-          try {
-            unsubscribe();
-          } catch (error) {
-            console.error("Error unsubscribing from messages:", error);
-          }
-        }
+        unsubscribe();
+        typingUnsubscribe();
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       };
-    } catch (setupError) {
-      console.error("Error setting up messages subscription:", setupError);
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+    } finally {
       setIsLoading(false);
-      return () => {};
     }
-  }, [user, conversationId]);
+  };
 
-  // Subscribe to typing status changes
-  useEffect(() => {
-    if (!user || !conversationId) return;
-    
-    const unsubscribe = subscribeToTypingStatus(conversationId, (users) => {
-      setTypingUsers(users);
-    });
-    
-    return () => unsubscribe();
-  }, [user, conversationId]);
-
-  // Mark messages as read when the user views them
-  useEffect(() => {
-    if (!user || !conversationId || isLoading || messages.length === 0) return;
-    
-    markMessagesAsRead(conversationId, user.uid);
-  }, [user, conversationId, isLoading, messages]);
-
-  // Handle typing debounce
   const handleTyping = () => {
-    if (!user || !conversationId) return;
+    if (!user || !otherUser) return;
     
-    if (!isUserTyping) {
-      setIsUserTyping(true);
-      updateTypingStatus(conversationId, user.uid, true);
-    }
+    // Update typing status to true
+    updateTypingStatus(conversationId, user.uid, true);
     
-    // Clear existing timer
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-    }
+    // Clear previous timer if exists
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     
-    // Set new timer to stop typing indicator after 3 seconds of inactivity
+    // Set timer to update typing status to false after 3 seconds
     typingTimerRef.current = setTimeout(() => {
-      setIsUserTyping(false);
       updateTypingStatus(conversationId, user.uid, false);
     }, 3000);
+    
+    // Update local state
+    setIsUserTyping(true);
   };
-  
-  // Clean up typing timer on unmount
-  useEffect(() => {
-    return () => {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-        
-        // Make sure to clear typing status when navigating away
-        if (user && conversationId && isUserTyping) {
-          updateTypingStatus(conversationId, user.uid, false);
-        }
-      }
-    };
-  }, [user, conversationId, isUserTyping]);
-  
-  // Check if the other user is typing
-  const isOtherUserTyping = useMemo(() => {
-    if (!otherUser || !typingUsers) return false;
-    
-    const typingTimestamp = typingUsers[otherUser.id];
-    if (!typingTimestamp) return false;
-    
-    // Check if typing timestamp is within the last 5 seconds
-    const now = new Date();
-    const typingTime = typingTimestamp.toDate?.() || new Date(typingTimestamp);
-    
-    return now.getTime() - typingTime.getTime() < 5000;
-  }, [otherUser, typingUsers]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const getOtherUserProfile = async (userId: string, userType: string) => {
+    if (!userId || !userType) {
+      console.error("Missing required parameters:", { userId, userType });
+      return { id: userId || 'unknown', type: userType || 'unknown', name: "Unknown User" };
+    }
+    
     try {
-      // Normalize user type to ensure collection names are correct
-      const normalizedUserType = userType.endsWith('s') ? userType : `${userType}s`;
+      console.log(`Fetching profile for user ID: ${userId}, type: ${userType}`);
       
-      // First, try to get the user from the direct collection (teachers, students, parents)
+      // Try getting directly from the main collection first (more likely to have data)
       try {
-        const profileDoc = await getDoc(doc(db, normalizedUserType, userId));
+        const directCollection = userType === "teacher" ? "teachers" : 
+                                userType === "student" ? "students" : "parents";
         
-        if (profileDoc.exists()) {
+        console.log(`Checking direct collection: ${directCollection}`);
+        const directDoc = await getDoc(doc(db, directCollection, userId));
+        
+        if (directDoc.exists()) {
+          const data = directDoc.data();
+          console.log(`Found user in ${directCollection}:`, data);
+          
+          // Use the most likely field name for the user name
+          const name = data.name || data.fullName || data.displayName || 
+                     (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : null) ||
+                     "Unknown User";
+          
           return {
             id: userId,
             type: userType,
-            ...profileDoc.data()
+            name: name,
+            ...data
           };
+        } else {
+          console.log(`No document found in ${directCollection}`);
         }
-      } catch (error) {
-        console.log(`Could not find user in ${normalizedUserType} collection:`, error);
+      } catch (directErr) {
+        console.error(`Error checking direct collection:`, directErr);
       }
       
-      // Try to find user in users collection as fallback
+      // Fall back to profile collections
+      let profileCollectionName;
+      if (userType === "teacher") {
+        profileCollectionName = "teacherProfiles";
+      } else if (userType === "student") {
+        profileCollectionName = "studentProfiles";
+      } else if (userType === "parent") {
+        profileCollectionName = "parentProfiles";
+      } else {
+        profileCollectionName = "users";
+      }
+      
+      console.log(`Checking profile collection: ${profileCollectionName}`);
+      
+      const profileQuery = query(
+        collection(db, profileCollectionName),
+        where("userId", "==", userId)
+      );
+      
+      const profileSnapshot = await getDocs(profileQuery);
+      
+      if (!profileSnapshot.empty) {
+        const data = profileSnapshot.docs[0].data();
+        console.log(`Found user in ${profileCollectionName}:`, data);
+        
+        // Use the most likely field name for the user name
+        const name = data.name || data.fullName || data.displayName || 
+                   (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : null) ||
+                   "Unknown User";
+        
+        return {
+          id: userId,
+          type: userType,
+          name: name,
+          ...data
+        };
+      }
+      
+      // Last resort: try the users collection
       try {
+        console.log(`Checking users collection`);
         const userDoc = await getDoc(doc(db, "users", userId));
         
         if (userDoc.exists()) {
+          const userData = userDoc.data();
+          console.log(`Found user in users collection:`, userData);
+          
+          const name = userData.displayName || userData.name || userData.email || "Unknown User";
+          
           return {
             id: userId,
             type: userType,
-            ...userDoc.data()
+            name: name,
+            ...userData
           };
         }
-      } catch (error) {
-        console.log(`Could not find user in users collection:`, error);
+      } catch (userErr) {
+        console.error("Error checking users collection:", userErr);
       }
       
-      // Return default if no profile is found
-      return { id: userId, type: userType, name: "Unknown User" };
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.log(`No profile found for user ${userId} of type ${userType}`);
+      return { id: userId, type: userType, name: `${userType.charAt(0).toUpperCase() + userType.slice(1)}` };
+    } catch (err) {
+      console.error("Error in getOtherUserProfile:", err);
       return { id: userId, type: userType, name: "Unknown User" };
     }
   };
 
   const handleSendMessage = async (text: string, files?: File[]) => {
-    if (!user || !text.trim() && (!files || files.length === 0) || isSending) return;
-
+    if (!user || !otherUser || (!text.trim() && (!files || files.length === 0)) || isSending) {
+      return;
+    }
+    
     try {
       setIsSending(true);
       
-      // Clear typing status when sending a message
-      if (isUserTyping) {
-        setIsUserTyping(false);
-        updateTypingStatus(conversationId, user.uid, false);
-      }
-      
-      const messageData: any = {
-        text: text.trim(),
-        senderId: user.uid,
-        createdAt: serverTimestamp()
-      };
+      let fileUrls: string[] = [];
+      let fileNames: string[] = [];
       
       // Upload files if any
       if (files && files.length > 0) {
         const storage = getStorage();
-        const fileUrls: string[] = [];
-        const fileNames: string[] = [];
         
-        // Upload each file and get download URL
         for (const file of files) {
-          const fileName = `${Date.now()}_${file.name}`;
-          const storageRef = ref(storage, `conversations/${conversationId}/${fileName}`);
+          const storagePath = `conversations/${conversationId}/files/${Date.now()}_${file.name}`;
+          const storageRef = ref(storage, storagePath);
           
           await uploadBytes(storageRef, file);
           const downloadUrl = await getDownloadURL(storageRef);
@@ -357,73 +399,51 @@ function ConversationPage() {
           fileUrls.push(downloadUrl);
           fileNames.push(file.name);
         }
-        
-        messageData.fileUrls = fileUrls;
-        messageData.fileNames = fileNames;
       }
       
-      console.log(`Sending message to conversation ${conversationId}`, {
-        textLength: text.trim().length,
-        filesCount: files?.length || 0
+      // Add message to conversation
+      const messageRef = await addDoc(
+        collection(db, "conversations", conversationId, "messages"),
+        {
+          text: text.trim(),
+          senderId: user.uid,
+          createdAt: serverTimestamp(),
+          fileUrls,
+          fileNames,
+          isRead: false
+        }
+      );
+      
+      // Update conversation with last message
+      await updateDoc(doc(db, "conversations", conversationId), {
+        lastMessage: text.trim() || "Sent an attachment",
+        lastMessageAt: serverTimestamp(),
+        [`unreadBy.${otherUser.id}`]: true
       });
       
-      try {
-        // Add message to the conversation
-        const messageRef = await addDoc(
-          collection(db, "conversations", conversationId, "messages"),
-          messageData
-        );
-        
-        console.log(`Message added successfully with ID: ${messageRef.id}`);
-      } catch (messageError: any) {
-        console.error(`Error adding message to conversation: ${messageError.code}, ${messageError.message}`);
-        alert("Could not send message. Please try again later.");
-        throw messageError;
-      }
+      // Clear typing status
+      updateTypingStatus(conversationId, user.uid, false);
       
-      try {
-        // Update conversation's last message
-        await updateDoc(doc(db, "conversations", conversationId), {
-          lastMessage: text.trim() || "Sent an attachment",
-          lastMessageAt: serverTimestamp()
-        });
-        
-        console.log("Conversation last message updated successfully");
-      } catch (updateError: any) {
-        console.error(`Error updating conversation last message: ${updateError.code}, ${updateError.message}`);
-        // Don't throw here as the message was already sent
-      }
-      
-      // Get recipient ID
-      const recipientId = conversation?.participants?.find((id: string) => id !== user.uid);
-      
-      if (recipientId) {
-        try {
-          // Create notification for the recipient
-          await createMessageNotification(
-            recipientId, 
-            user.uid, 
-            conversationId, 
-            text.trim() || "Sent an attachment"
-          );
-          
-          console.log(`Notification created for recipient ${recipientId}`);
-        } catch (notificationError: any) {
-          console.error(`Error creating notification: ${notificationError.code}, ${notificationError.message}`);
-          // Don't throw here as the message was already sent
-        }
-      }
+      // Create notification for the other user
+      await createMessageNotification({
+        recipientId: otherUser.id,
+        senderId: user.uid,
+        senderName: userProfile?.name || userProfile?.fullName || user.email || "User",
+        conversationId,
+        messageText: text.trim() || "Sent an attachment"
+      });
       
       setNewMessage("");
-    } catch (error: any) {
-      console.error("Error sending message:", error.code, error.message);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Failed to send message. Please try again.");
     } finally {
       setIsSending(false);
     }
   };
 
   const getDisplayName = (user: any) => {
-    return user?.name || user?.fullName || "Unknown User";
+    return user?.name || user?.fullName || user?.email || "Unknown User";
   };
 
   const formatMessageTime = (timestamp: any) => {
@@ -431,7 +451,7 @@ function ConversationPage() {
     
     try {
       const date = timestamp.toDate();
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return formatDistanceToNow(date, { addSuffix: true });
     } catch (error) {
       return "";
     }
@@ -447,194 +467,165 @@ function ConversationPage() {
       .toUpperCase();
   };
 
-  // Get user profile
-  useEffect(() => {
+  // Fetch current user profile for notification purposes
+  const fetchUserProfile = async () => {
     if (!user) return;
     
-    const fetchUserProfile = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
-        }
-      } catch (error) {
-        console.error("Error fetching user profile:", error);
+    try {
+      // First, determine the user type
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      
+      if (!userDoc.exists()) return;
+      
+      const userData = userDoc.data();
+      const userType = userData.userType;
+      
+      let profileCollection;
+      if (userType === "teacher") {
+        profileCollection = "teacherProfiles";
+      } else if (userType === "student") {
+        profileCollection = "studentProfiles";
+      } else if (userType === "parent") {
+        profileCollection = "parentProfiles";
+      } else {
+        return;
       }
-    };
-    
-    fetchUserProfile();
-  }, [user]);
-
-  // Check if phone number has been requested already
-  useEffect(() => {
-    if (!user || !otherUser || !otherUser.type || !otherUser.id) return;
-    
-    // Only check if current user is student or parent and other user is teacher
-    if ((userProfile?.userType === 'student' || userProfile?.userType === 'parent') && 
-        otherUser.type === 'teacher') {
-      checkPhoneRequestStatus();
+      
+      // Get the profile
+      const profileQuery = query(
+        collection(db, profileCollection),
+        where("userId", "==", user.uid)
+      );
+      
+      const profileSnapshot = await getDocs(profileQuery);
+      
+      if (!profileSnapshot.empty) {
+        setUserProfile({
+          ...profileSnapshot.docs[0].data(),
+          userType
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
     }
-  }, [user, otherUser, userProfile]);
+  };
 
   const checkPhoneRequestStatus = async () => {
-    if (!user || !otherUser || !otherUser.id) return;
+    if (!user || !otherUser || !conversationId) return;
     
     try {
-      const requestId = `${user.uid}_${otherUser.id}`;
-      const requestDoc = await getDoc(doc(db, "phoneNumberRequests", requestId));
+      // No phone requests needed if we're the teacher
+      if (userProfile?.userType === "teacher") return;
       
-      if (requestDoc.exists()) {
-        const requestData = requestDoc.data();
+      // Only check phone requests for students/parents requesting teacher numbers
+      if (otherUser.type !== "teacher") return;
+      
+      // Check for existing phone request
+      const requestsQuery = query(
+        collection(db, "phoneRequests"),
+        where("requesterId", "==", user.uid),
+        where("teacherId", "==", otherUser.id),
+        orderBy("createdAt", "desc")
+      );
+      
+      const requestsSnapshot = await getDocs(requestsQuery);
+      
+      if (!requestsSnapshot.empty) {
+        const requestData = requestsSnapshot.docs[0].data();
         setPhoneRequestStatus(requestData.status);
-        setPhoneRequestId(requestId);
+        setPhoneRequestId(requestsSnapshot.docs[0].id);
         
-        // If request is approved, store the phone number
-        if (requestData.status === 'approved' && requestData.phoneNumber) {
-          setPhoneNumber(requestData.phoneNumber);
+        if (requestData.status === "approved") {
+          setPhoneNumber(otherUser.phoneNumber);
+          setHasRequestedNumber(true);
         }
-      } else {
-        setPhoneRequestStatus(null);
-        setPhoneRequestId(null);
       }
     } catch (error) {
       console.error("Error checking phone request status:", error);
     }
   };
 
-  const requestPhoneNumber = async () => {
+  const handleRequestNumber = async () => {
     if (!user || !otherUser || phoneRequestLoading) return;
     
-    setPhoneRequestLoading(true);
-    
     try {
-      const requestId = `${user.uid}_${otherUser.id}`;
-      const timestamp = new Date().toISOString();
+      setIsRequestingNumber(true);
       
-      // Create a new phone number request
-      await setDoc(doc(db, 'phoneNumberRequests', requestId), {
-        id: requestId,
+      // Create phone request
+      const requestRef = await addDoc(collection(db, "phoneRequests"), {
         requesterId: user.uid,
-        requesterType: userProfile?.userType || 'student',
+        requesterType: userProfile?.userType,
         teacherId: otherUser.id,
-        teacherName: otherUser.name || 'Teacher',
-        status: 'pending',
-        timestamp,
-        phoneNumber: null
+        status: "pending",
+        createdAt: serverTimestamp(),
+        conversationId
       });
       
-      // Create notification for the teacher
-      try {
-        await createPhoneRequestNotification(
-          otherUser.id,
-          user.uid,
-          requestId,
-          "pending"
-        );
-      } catch (notifError) {
-        console.error("Error creating phone request notification:", notifError);
-      }
+      // Update status
+      setPhoneRequestStatus("pending");
+      setPhoneRequestId(requestRef.id);
       
-      setPhoneRequestStatus('pending');
-      setPhoneRequestId(requestId);
+      // Add system message to conversation
+      await addDoc(collection(db, "conversations", conversationId, "messages"), {
+        text: `Phone number requested`,
+        senderId: "system",
+        isSystemMessage: true,
+        systemMessageType: "phone_request",
+        requestId: requestRef.id,
+        createdAt: serverTimestamp()
+      });
       
-      // Add a system message to the conversation
-      try {
-        console.log(`Adding system message to conversation ${conversationId}`);
-        await addDoc(
-          collection(db, "conversations", conversationId, "messages"),
-          {
-            text: "Phone number requested",
-            senderId: user.uid,
-            createdAt: serverTimestamp(),
-            isSystemMessage: true,
-            systemMessageType: "phone_request",
-            requestId
-          }
-        );
-        
-        // Make sure we update the last message in the conversation
-        await updateDoc(doc(db, "conversations", conversationId), {
-          lastMessage: "Phone number requested", 
-          lastMessageAt: serverTimestamp()
-        });
-        
-        console.log(`System message added successfully`);
-      } catch (systemMessageError) {
-        console.error("Error adding system message:", systemMessageError);
-        // Don't throw here, the request was still created
-      }
+      // Create notification for teacher
+      await createPhoneRequestNotification({
+        teacherId: otherUser.id,
+        requesterId: user.uid,
+        requesterName: userProfile?.name || userProfile?.fullName || user.email || "User",
+        conversationId
+      });
       
+      // Update conversation last message
+      await updateDoc(doc(db, "conversations", conversationId), {
+        lastMessage: "Phone number requested",
+        lastMessageAt: serverTimestamp(),
+        [`unreadBy.${otherUser.id}`]: true
+      });
     } catch (error) {
       console.error("Error requesting phone number:", error);
       alert("Failed to request phone number. Please try again.");
     } finally {
-      setPhoneRequestLoading(false);
+      setIsRequestingNumber(false);
     }
   };
 
   const handlePhoneRequest = async (action: 'approved' | 'reject') => {
-    if (!user || !otherUser || !phoneRequestId || phoneRequestLoading) return;
-    
-    setPhoneRequestLoading(true);
+    if (!phoneRequestId || phoneRequestLoading) return;
     
     try {
-      const requestDoc = await getDoc(doc(db, "phoneNumberRequests", phoneRequestId));
+      setPhoneRequestLoading(true);
       
-      if (!requestDoc.exists()) {
-        console.error("Phone request not found");
-        return;
-      }
-      
-      const requestData = requestDoc.data();
-      const requesterId = requestData.requesterId;
-      
-      // Update the request status
-      await updateDoc(doc(db, "phoneNumberRequests", phoneRequestId), {
+      // Update request status
+      await updateDoc(doc(db, "phoneRequests", phoneRequestId), {
         status: action,
-        phoneNumber: action === 'approved' ? otherUser.phoneNumber : null,
-        respondedAt: serverTimestamp()
+        updatedAt: serverTimestamp()
       });
       
-      // Create notification for the requester
-      try {
-        await createPhoneRequestNotification(
-          requesterId,
-          user.uid,
-          phoneRequestId,
-          action === 'approved' ? 'approved' : 'rejected'
-        );
-      } catch (notifError) {
-        console.error("Error creating phone request notification:", notifError);
-      }
+      // Add system message to conversation
+      await addDoc(collection(db, "conversations", conversationId, "messages"), {
+        text: `Phone number request ${action === 'approved' ? 'approved' : 'rejected'}`,
+        senderId: "system",
+        isSystemMessage: true,
+        systemMessageType: "phone_request_update",
+        status: action,
+        requestId: phoneRequestId,
+        createdAt: serverTimestamp()
+      });
       
-      // Add a system message to the conversation
-      try {
-        const statusText = `Phone number request ${action === 'approved' ? 'approved' : 'rejected'}`;
-        console.log(`Adding system message: ${statusText}`);
-        
-        await addDoc(
-          collection(db, "conversations", conversationId, "messages"),
-          {
-            text: statusText,
-            senderId: user.uid,
-            createdAt: serverTimestamp(),
-            isSystemMessage: true,
-            systemMessageType: action === 'approved' ? "phone_approved" : "phone_rejected",
-            requestId: phoneRequestId
-          }
-        );
-        
-        // Update the conversation's last message
-        await updateDoc(doc(db, "conversations", conversationId), {
-          lastMessage: statusText,
-          lastMessageAt: serverTimestamp()
-        });
-        
-        console.log("System message added successfully");
-      } catch (systemMessageError) {
-        console.error("Error adding system message:", systemMessageError);
-        // Don't throw here, the request was still processed
-      }
+      // Update conversation last message
+      await updateDoc(doc(db, "conversations", conversationId), {
+        lastMessage: `Phone number request ${action === 'approved' ? 'approved' : 'rejected'}`,
+        lastMessageAt: serverTimestamp(),
+        [`unreadBy.${otherUser.id}`]: true
+      });
       
       // Update local state
       setPhoneRequestStatus(action);
@@ -652,228 +643,146 @@ function ConversationPage() {
 
   return (
     <DashboardShell>
-      <div className="flex flex-col h-[calc(100vh-200px)]">
-        {/* Header */}
-        <div className="flex items-center justify-between py-4 border-b">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => router.back()}
-              className="flex items-center text-gray-600 hover:text-gray-900"
-            >
-              <ChevronLeft className="h-5 w-5" />
-              <span className="sr-only">Back</span>
-            </button>
-            
-            {otherUser && (
-              <div className="flex items-center gap-3">
-                <div className="relative h-10 w-10 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
-                  {otherUser.avatarUrl ? (
-                    <Image
-                      src={getCacheBustedUrl(otherUser.avatarUrl)}
-                      alt={getDisplayName(otherUser)}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    getInitials(getDisplayName(otherUser))
-                  )}
-                </div>
+      <Card className="flex flex-col h-[calc(100vh-180px)] overflow-hidden">
+        <div className="border-b p-4 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/dashboard/messages")}
+            className="mr-1"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          
+          <div className="flex items-center gap-3 flex-1">
+            {isLoading ? (
+              // Skeleton loader for the avatar and user info when loading
+              <>
+                <Skeleton className="h-10 w-10 rounded-full" />
                 <div>
-                  <p className="font-medium text-gray-900">{getDisplayName(otherUser)}</p>
-                  <p className="text-xs text-gray-500 capitalize">{otherUser.type}</p>
+                  <Skeleton className="h-5 w-32 mb-1" />
+                  <Skeleton className="h-3 w-16" />
                 </div>
-              </div>
+              </>
+            ) : (
+              <>
+                <Avatar className="h-10 w-10">
+                  {otherUser?.avatarUrl ? (
+                    <AvatarImage 
+                      src={getCacheBustedUrl(otherUser.avatarUrl)} 
+                      alt={otherUser?.name || "User"} 
+                    />
+                  ) : null}
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {otherUser ? getInitials(otherUser.name || "User") : "?"}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div>
+                  <p className="font-medium">
+                    {isLoading ? "Loading..." : (otherUser?.name || "Unknown User")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {otherUser?.type === "teacher" ? "Teacher" : 
+                     otherUser?.type === "student" ? "Student" : 
+                     otherUser?.type === "parent" ? "Parent" : "User"}
+                  </p>
+                </div>
+              </>
             )}
           </div>
           
-          {/* Phone Request Button for Students/Parents when chatting with Teacher */}
-          {otherUser && otherUser.type === 'teacher' && 
-           userProfile && (userProfile.userType === 'student' || userProfile.userType === 'parent') && (
-            <div className="flex items-center">
-              {phoneRequestStatus === null && (
-                <button
-                  onClick={requestPhoneNumber}
-                  disabled={phoneRequestLoading}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
-                >
-                  <Phone className="h-4 w-4" />
-                  <span>Request Phone</span>
-                </button>
-              )}
-              
-              {phoneRequestStatus === 'pending' && (
-                <span className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-100 rounded-md">
-                  <Phone className="h-4 w-4" />
-                  <span>Request Pending</span>
-                </span>
-              )}
-              
-              {phoneRequestStatus === 'approved' && phoneNumber && (
-                <div className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-100 rounded-md">
-                  <Phone className="h-4 w-4" />
-                  <span>Phone: {phoneNumber}</span>
-                </div>
-              )}
-              
-              {phoneRequestStatus === 'rejected' && (
-                <span className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md">
-                  <Phone className="h-4 w-4" />
-                  <span>Request Rejected</span>
-                </span>
-              )}
-            </div>
-          )}
-          
-          {/* Phone Request Management for Teachers */}
-          {otherUser && userProfile && userProfile.userType === 'teacher' && 
-           phoneRequestStatus === 'pending' && phoneRequestId && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-700">Phone number requested</span>
-              <button
-                onClick={() => handlePhoneRequest('approved')}
-                disabled={phoneRequestLoading}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md disabled:opacity-50"
+          {isLoading ? (
+            <Skeleton className="h-8 w-28" />
+          ) : (
+            otherUser?.type === "teacher" && user && (
+              userProfile?.userType === "student" || userProfile?.userType === "parent"
+            ) && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-xs gap-1"
+                onClick={handleRequestNumber}
+                disabled={isRequestingNumber || hasRequestedNumber || !otherUser}
               >
-                <Check className="h-4 w-4" />
-                <span>Approve</span>
-              </button>
-              <button
-                onClick={() => handlePhoneRequest('reject')}
-                disabled={phoneRequestLoading}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
-              >
-                <X className="h-4 w-4" />
-                <span>Reject</span>
-              </button>
-            </div>
+                <Phone className="h-3 w-3" />
+                {hasRequestedNumber ? "Number Requested" : "Request Number"}
+              </Button>
+            )
           )}
         </div>
         
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <ScrollArea 
+          ref={scrollAreaRef} 
+          className="flex-1 p-4"
+        >
+          {!otherUser ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <div className="h-12 w-12 rounded-full border-t-2 border-blue-500 animate-spin mb-4"></div>
+              <p className="text-muted-foreground">Loading conversation...</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <p className="text-gray-500">No messages yet</p>
-                <p className="text-sm text-gray-400">Start the conversation by sending a message below</p>
-              </div>
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <MessageSquare className="h-12 w-12 text-muted-foreground opacity-50 mb-4" />
+              <h3 className="text-lg font-medium">No Messages Yet</h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-6 max-w-md">
+                Start your conversation with {otherUser.name}. Be polite and clear in your communication.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {messages.map((message) => {
-                const isCurrentUser = message.senderId === user?.uid;
-                const isSystemMessage = message.senderId === "system" || message.isSystemMessage;
-                
-                // System message (like phone request notifications)
-                if (isSystemMessage) {
-                  return (
-                    <div key={message.id} className="flex justify-center">
-                      <div className="bg-gray-100 text-gray-600 text-sm py-1 px-3 rounded-full">
-                        {message.text}
-                      </div>
-                    </div>
-                  );
-                }
-                
-                // Regular chat message
-                return (
-                  <div 
-                    key={message.id} 
-                    className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.senderId === user?.uid ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      message.senderId === user?.uid
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
                   >
-                    <div 
-                      className={`max-w-[75%] px-4 py-2 rounded-lg ${
-                        isCurrentUser 
-                          ? 'bg-blue-600 text-white rounded-br-none' 
-                          : 'bg-gray-100 text-gray-900 rounded-bl-none'
+                    <div className="text-sm break-words">{message.text}</div>
+                    <div
+                      className={`text-xs mt-1 ${
+                        message.senderId === user?.uid
+                          ? "text-primary-foreground/70"
+                          : "text-muted-foreground"
                       }`}
                     >
-                      <p>{message.text}</p>
-                      
-                      {/* File attachments */}
-                      {message.fileUrls && message.fileUrls.length > 0 && (
-                        <div className="mt-2 space-y-2">
-                          {message.fileUrls.map((url, index) => {
-                            const fileName = message.fileNames?.[index] || 'Attachment';
-                            const isImage = url.match(/\.(jpeg|jpg|gif|png)$/i);
-                            
-                            return (
-                              <div key={index} className="inline-block">
-                                {isImage ? (
-                                  <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-                                    <div className="relative h-32 w-32 rounded-md overflow-hidden">
-                                      <Image
-                                        src={url}
-                                        alt={fileName}
-                                        fill
-                                        className="object-cover"
-                                      />
-                                    </div>
-                                  </a>
-                                ) : (
-                                  <a 
-                                    href={url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className={`flex items-center gap-2 p-2 rounded-md ${
-                                      isCurrentUser ? 'bg-blue-700' : 'bg-gray-200'
-                                    }`}
-                                  >
-                                    <Paperclip className={`h-4 w-4 ${
-                                      isCurrentUser ? 'text-blue-200' : 'text-gray-500'
-                                    }`} />
-                                    <span className={`text-sm truncate max-w-[200px] ${
-                                      isCurrentUser ? 'text-blue-100' : 'text-gray-800'
-                                    }`}>
-                                      {fileName}
-                                    </span>
-                                  </a>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      
-                      <p 
-                        className={`text-xs mt-1 ${
-                          isCurrentUser ? 'text-blue-200' : 'text-gray-500'
-                        }`}
-                      >
-                        {formatMessageTime(message.createdAt)}
-                      </p>
+                      {formatMessageTime(message.createdAt)}
                     </div>
                   </div>
-                );
-              })}
-              
-              {/* Typing indicator */}
+                </div>
+              ))}
               {isOtherUserTyping && (
-                <TypingIndicator 
-                  isTyping={true} 
-                  userName={getDisplayName(otherUser)}
-                />
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-lg p-3 bg-muted">
+                    <div className="flex items-center gap-2">
+                      <div className="flex space-x-1">
+                        <span className="typing-dot"></span>
+                        <span className="typing-dot"></span>
+                        <span className="typing-dot"></span>
+                      </div>
+                      <span className="text-xs text-gray-500">{otherUser?.name || "User"} is typing...</span>
+                    </div>
+                  </div>
+                </div>
               )}
-              
-              <div ref={messageEndRef} />
             </div>
           )}
-        </div>
+        </ScrollArea>
         
-        {/* Message Input */}
-        <div className="border-t p-4">
-          <MessageInput
-            onSend={handleSendMessage}
-            onTyping={handleTyping}
-            isLoading={isSending}
-            disabled={isLoading}
-          />
-        </div>
-      </div>
+        <MessageInput 
+          onSend={handleSendMessage} 
+          onTyping={handleTyping} 
+          isLoading={isSending} 
+          disabled={!otherUser?.id}
+        />
+      </Card>
     </DashboardShell>
   );
 }
