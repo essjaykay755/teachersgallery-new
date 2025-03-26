@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "@/app/components/shared/notification-dropdown";
 import { NotificationsProvider } from "@/lib/notifications-context";
 import ClientOnly from "@/app/components/client-only";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +31,7 @@ export function Navbar({ className }: NavbarProps) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isClientSide, setIsClientSide] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const { user, userProfile, logout, isLoading } = useAuth();
   const router = useRouter();
   
@@ -46,6 +49,35 @@ export function Navbar({ className }: NavbarProps) {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+  
+  // Effect to fetch user avatar based on user type
+  useEffect(() => {
+    const fetchUserAvatar = async () => {
+      if (!user || !userProfile) return;
+      
+      try {
+        // Get collection based on user type
+        const collectionName = userProfile.userType === 'teacher' 
+          ? 'teachers' 
+          : userProfile.userType === 'student'
+            ? 'students'
+            : 'parents';
+        
+        const userDoc = await getDoc(doc(db, collectionName, user.uid));
+        
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          if (data.avatarUrl) {
+            setAvatarUrl(data.avatarUrl);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user avatar:", error);
+      }
+    };
+    
+    fetchUserAvatar();
+  }, [user, userProfile]);
   
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -77,6 +109,19 @@ export function Navbar({ className }: NavbarProps) {
         </NotificationsProvider>
       </ClientOnly>
     );
+  };
+
+  // Generate user initials from email
+  const getUserInitials = (): string => {
+    if (!user?.email) return "U";
+    
+    const parts = user.email.split('@');
+    if (parts.length === 0) return "U";
+    
+    const name = parts[0];
+    if (name.length <= 2) return name.toUpperCase();
+    
+    return name.substring(0, 2).toUpperCase();
   };
 
   return (
@@ -159,9 +204,9 @@ export function Navbar({ className }: NavbarProps) {
                   <DropdownMenuTrigger asChild>
                     <button className="focus:outline-none transition-transform hover:scale-105 duration-200">
                       <Avatar className="h-8 w-8 cursor-pointer">
-                        <AvatarImage src="" alt={user.email || "User"} />
+                        <AvatarImage src={avatarUrl || ""} alt={user.email || "User"} />
                         <AvatarFallback className="bg-indigo-500 text-white">
-                          {user.email?.substring(0, 2).toUpperCase() || "U"}
+                          {getUserInitials()}
                         </AvatarFallback>
                       </Avatar>
                     </button>
@@ -300,6 +345,21 @@ export function Navbar({ className }: NavbarProps) {
             
             {user ? (
               <>
+                <div className="flex items-center gap-3 px-3 py-3 mt-2 border-t border-gray-800">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={avatarUrl || ""} alt={user.email || "User"} />
+                    <AvatarFallback className="bg-indigo-500 text-white">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-200">{user.email}</span>
+                    {userProfile && (
+                      <span className="text-xs text-gray-400 capitalize">{userProfile.userType}</span>
+                    )}
+                  </div>
+                </div>
+                
                 <Link
                   href="/dashboard"
                   className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"

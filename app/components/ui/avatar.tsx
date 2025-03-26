@@ -23,13 +23,53 @@ Avatar.displayName = AvatarPrimitive.Root.displayName
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
-    {...props}
-  />
-))
+>(({ className, src, ...props }, ref) => {
+  // Add cache-busting to the URL to prevent stale images
+  const cacheBustedSrc = React.useMemo(() => {
+    if (typeof src !== 'string' || !src) return src;
+    
+    // Don't modify data URLs as they're already complete and can't accept query params
+    if (src.startsWith('data:')) return src;
+    
+    // Force a new URL by adding timestamp and random number
+    const separator = src.includes('?') ? '&' : '?';
+    const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
+    
+    // Handle already cache-busted URLs 
+    if (src.includes('v=')) {
+      return src.replace(/v=[^&]+/, `v=${Date.now()}-${Math.random()}`);
+    }
+    
+    return `${src}${cacheBuster}`;
+  }, [src]);
+
+  return (
+    <AvatarPrimitive.Image
+      ref={ref}
+      src={cacheBustedSrc}
+      className={cn("aspect-square h-full w-full object-cover", className)}
+      onError={(e) => {
+        console.error("Avatar image failed to load:", {
+          src: cacheBustedSrc,
+          isDataUrl: cacheBustedSrc?.startsWith('data:'),
+          urlLength: typeof cacheBustedSrc === 'string' ? cacheBustedSrc.length : 0
+        });
+        
+        // Hide the image if it fails to load
+        const target = e.target as HTMLImageElement;
+        if (target) {
+          target.style.display = 'none';
+          // Make sure the fallback is shown
+          const fallback = target.parentElement?.querySelector('[data-radix-avatar-fallback]');
+          if (fallback) {
+            (fallback as HTMLElement).style.display = 'flex';
+          }
+        }
+      }}
+      {...props}
+    />
+  )
+})
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
 const AvatarFallback = React.forwardRef<

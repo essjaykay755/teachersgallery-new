@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Cropper from "react-easy-crop";
 import { X } from "lucide-react";
 
@@ -27,26 +27,6 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
-
-  // Create image object when component mounts to ensure it's loaded
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = image;
-    img.onload = () => {
-      setImageObj(img);
-    };
-    img.onerror = (error) => {
-      console.error("Error loading image for cropper:", error);
-      onCancel(); // Close the cropper if the image fails to load
-    };
-
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [image, onCancel]);
 
   const onCropChange = useCallback((newCrop: Point) => {
     setCrop(newCrop);
@@ -56,40 +36,34 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
     setZoom(newZoom);
   }, []);
 
-  const onCropAreaChange = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
+  const onCropAreaChange = useCallback(
+    (_croppedArea: Area, croppedAreaPixels: Area) => {
+      setCroppedAreaPixels(croppedAreaPixels);
+    },
+    []
+  );
 
-  const createImage = (url: string): Promise<HTMLImageElement> =>
-    new Promise((resolve, reject) => {
-      // Use our pre-loaded image if available
-      if (imageObj && imageObj.src === url) {
-        resolve(imageObj);
-        return;
-      }
-      
+  // Helper function to create an image from URL
+  const createImage = (url: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
       const image = new Image();
       image.crossOrigin = "anonymous";
-      image.addEventListener("load", () => resolve(image));
-      image.addEventListener("error", (error) => {
-        console.error("Error creating image:", error);
-        reject(error);
-      });
       image.src = url;
+      image.onload = () => resolve(image);
+      image.onerror = (error) => reject(error);
     });
+  };
 
-  const getCroppedImg = async (
+  // Function to get cropped image
+  const getCroppedImage = async (
     imageSrc: string,
-    pixelCrop: Area,
-    rotation = 0
+    pixelCrop: Area
   ): Promise<Blob> => {
     try {
-      // Create a new image from the source
+      // Load the image
       const image = await createImage(imageSrc);
-      console.log("Original image dimensions:", image.width, "x", image.height);
-      console.log("Crop area:", pixelCrop);
       
-      // Create a canvas directly at the target size (200x200)
+      // Create a canvas with 200x200 dimensions
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       
@@ -97,16 +71,11 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
         throw new Error("Could not get canvas context");
       }
       
-      // Set canvas dimensions to our target 200x200 pixels
+      // Set canvas size to exactly 200x200 pixels
       canvas.width = 200;
       canvas.height = 200;
       
-      // Fill with white background for transparent images
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw the cropped portion of the image directly to the 200x200 canvas
-      // This combines cropping and resizing in one step
+      // Draw cropped image to canvas with exact 200x200 size
       ctx.drawImage(
         image,
         pixelCrop.x,
@@ -119,41 +88,47 @@ export default function ImageCropper({ image, onCropComplete, onCancel }: ImageC
         200
       );
       
-      console.log("Final canvas dimensions:", canvas.width, "x", canvas.height);
-      
-      // Create blob with optimized compression
+      // Convert canvas to blob
       return new Promise((resolve, reject) => {
         canvas.toBlob(
           (blob) => {
             if (!blob) {
-              reject(new Error("Canvas toBlob error"));
+              reject(new Error("Canvas toBlob failed"));
               return;
             }
             
-            console.log("Generated avatar blob:", blob.size, "bytes,", blob.type);
+            // Log the blob details for debugging
+            console.log("Generated cropped image:", {
+              size: blob.size,
+              type: blob.type,
+              dimensions: "200x200"
+            });
+            
             resolve(blob);
           },
           "image/jpeg",
-          0.8  // Slightly more compression for smaller file size
+          0.95 // High quality
         );
       });
     } catch (error) {
-      console.error("Error generating cropped image:", error);
+      console.error("Error creating cropped image:", error);
       throw error;
     }
   };
 
+  // Handle crop completion
   const handleComplete = async () => {
     try {
-      setIsProcessing(true);
       if (!croppedAreaPixels) {
         throw new Error("No crop area selected");
       }
-      const croppedImage = await getCroppedImg(image, croppedAreaPixels);
+      
+      setIsProcessing(true);
+      
+      const croppedImage = await getCroppedImage(image, croppedAreaPixels);
       onCropComplete(croppedImage);
-    } catch (e) {
-      console.error("Error generating cropped image:", e);
-    } finally {
+    } catch (error) {
+      console.error("Error completing crop:", error);
       setIsProcessing(false);
     }
   };

@@ -1,7 +1,6 @@
 "use client";
 
 import { forwardRef, useEffect } from "react";
-import Image from "next/image";
 import { User, Upload } from "lucide-react";
 import { useAvatarUpload } from "@/app/hooks/use-avatar-upload";
 import ImageCropper from "./image-cropper";
@@ -67,43 +66,35 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
             }`}
           >
             {avatarUrl ? (
-              <Image
-                src={avatarUrl}
-                alt="Avatar"
-                fill
-                className="object-cover"
-                sizes={`${
-                  size === "sm" ? "5rem" : size === "md" ? "8rem" : "10rem"
-                }`}
-                priority
-                unoptimized={avatarUrl.startsWith('blob:')}
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  console.log("Avatar loaded with dimensions:", img.naturalWidth, "x", img.naturalHeight);
-                  
-                  // Check if image is not 200x200, log a warning
-                  if (img.naturalWidth !== 200 || img.naturalHeight !== 200) {
-                    console.warn("Avatar image is not 200x200 pixels:", img.naturalWidth, "x", img.naturalHeight);
-                  }
-                }}
-                onError={(e) => {
-                  console.error("Avatar image failed to load:", e);
-                  const target = e.target as HTMLImageElement;
-                  target.onerror = null;
-                  target.src = "/images/default-avatar.png";
-                }}
-              />
+              <div className="relative w-full h-full">
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="absolute inset-0 h-full w-full object-cover rounded-full"
+                  onError={(e) => {
+                    console.error("Avatar image failed to load:", e);
+                    
+                    // Display fallback icon if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    
+                    // Find parent container and add fallback icon
+                    const container = target.closest('.relative');
+                    if (container) {
+                      const existingFallback = container.querySelector('.avatar-fallback');
+                      if (!existingFallback) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'avatar-fallback flex h-full w-full items-center justify-center bg-gray-200 text-gray-500';
+                        fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+                        container.appendChild(fallback);
+                      }
+                    }
+                  }}
+                />
+              </div>
             ) : (
-              <User
-                className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-400 ${
-                  size === "sm" ? "h-10 w-10" : size === "md" ? "h-14 w-14" : "h-20 w-20"
-                } ${avatarUrl ? 'hidden' : ''}`}
-              />
-            )}
-
-            {isUploading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-white border-t-transparent"></div>
+              <div className="flex h-full w-full items-center justify-center">
+                <User className="h-8 w-8 text-gray-400" />
               </div>
             )}
           </div>
@@ -112,7 +103,7 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
             <div className="flex flex-col space-y-1">
               <div>
                 <label
-                  htmlFor={`avatar-upload-${userId}`}
+                  htmlFor={`avatar-upload-${userId || 'new'}`}
                   className={`inline-block cursor-pointer rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isUploading ? "Uploading..." : avatarUrl ? "Change Photo" : "Upload Photo"}
@@ -130,7 +121,7 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
                 }`}
               >
                 <label
-                  htmlFor={`avatar-upload-${userId}`}
+                  htmlFor={`avatar-upload-${userId || 'new'}`}
                   className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-2 text-center"
                 >
                   <Upload className="mb-1 h-6 w-6 text-gray-500" />
@@ -147,7 +138,7 @@ const AvatarInput = forwardRef<HTMLInputElement, AvatarInputProps>(
           )}
 
           <input
-            id={`avatar-upload-${userId}`}
+            id={`avatar-upload-${userId || 'new'}`}
             ref={ref}
             type="file"
             accept="image/*"

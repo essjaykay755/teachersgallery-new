@@ -28,6 +28,9 @@ const AvatarImage = React.forwardRef<
   const cacheBustedSrc = React.useMemo(() => {
     if (typeof src !== 'string' || !src) return src;
     
+    // Don't modify data URLs as they're already complete and can't accept query params
+    if (src.startsWith('data:')) return src;
+    
     // Force a new URL by adding both timestamp and a random number
     const separator = src.includes('?') ? '&' : '?';
     const cacheBuster = `${separator}v=${Date.now()}-${Math.random()}`;
@@ -41,22 +44,18 @@ const AvatarImage = React.forwardRef<
     return `${src}${cacheBuster}`;
   }, [src]);
   
-  // Use a standard size for all avatars (assumes all avatars are 200x200 pixels)
-  const imageDimensions = {
-    width: 200,
-    height: 200
-  };
-
   return (
     <AvatarPrimitive.Image
       ref={ref}
       src={cacheBustedSrc}
       className={cn("aspect-square h-full w-full object-cover", className)}
-      width={imageDimensions.width}
-      height={imageDimensions.height}
-      loading="eager" // Load avatars quickly
-      decoding="async" // Allow the browser to decode the image asynchronously
       onError={(e) => {
+        console.error("Avatar image failed to load:", {
+          src: cacheBustedSrc,
+          isDataUrl: cacheBustedSrc?.startsWith('data:'),
+          urlLength: typeof cacheBustedSrc === 'string' ? cacheBustedSrc.length : 0
+        });
+        
         // Hide the image if it fails to load
         const target = e.target as HTMLImageElement;
         if (target) {
