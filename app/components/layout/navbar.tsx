@@ -32,6 +32,7 @@ export function Navbar({ className }: NavbarProps) {
   const [isClientSide, setIsClientSide] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
   const { user, userProfile, logout, isLoading } = useAuth();
   const router = useRouter();
   
@@ -70,6 +71,9 @@ export function Navbar({ className }: NavbarProps) {
           if (data.avatarUrl) {
             setAvatarUrl(data.avatarUrl);
           }
+          // Get user's name based on the field name in different collections
+          const name = data.fullName || data.name || user.email?.split('@')[0] || 'User';
+          setUserName(name);
         }
       } catch (error) {
         console.error("Error fetching user avatar:", error);
@@ -111,8 +115,14 @@ export function Navbar({ className }: NavbarProps) {
     );
   };
 
-  // Generate user initials from email
+  // Generate user initials from name or email
   const getUserInitials = (): string => {
+    if (userName) {
+      const parts = userName.split(' ');
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    
     if (!user?.email) return "U";
     
     const parts = user.email.split('@');
@@ -204,7 +214,7 @@ export function Navbar({ className }: NavbarProps) {
                   <DropdownMenuTrigger asChild>
                     <button className="focus:outline-none transition-transform hover:scale-105 duration-200">
                       <Avatar className="h-8 w-8 cursor-pointer">
-                        <AvatarImage src={avatarUrl || ""} alt={user.email || "User"} />
+                        <AvatarImage src={avatarUrl || ""} alt={userName || user.email || "User"} />
                         <AvatarFallback className="bg-indigo-500 text-white">
                           {getUserInitials()}
                         </AvatarFallback>
@@ -214,7 +224,7 @@ export function Navbar({ className }: NavbarProps) {
                   <DropdownMenuContent align="end" className="w-48 mt-1">
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium text-gray-800">{user.email}</p>
+                        <p className="text-sm font-medium text-gray-800">{userName || user.email}</p>
                         {userProfile && (
                           <p className="text-xs text-gray-500 capitalize">{userProfile.userType}</p>
                         )}
@@ -347,13 +357,13 @@ export function Navbar({ className }: NavbarProps) {
               <>
                 <div className="flex items-center gap-3 px-3 py-3 mt-2 border-t border-gray-800">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={avatarUrl || ""} alt={user.email || "User"} />
+                    <AvatarImage src={avatarUrl || ""} alt={userName || user.email || "User"} />
                     <AvatarFallback className="bg-indigo-500 text-white">
                       {getUserInitials()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-200">{user.email}</span>
+                    <span className="text-sm font-medium text-gray-200">{userName || user.email}</span>
                     {userProfile && (
                       <span className="text-xs text-gray-400 capitalize">{userProfile.userType}</span>
                     )}
