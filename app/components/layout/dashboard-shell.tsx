@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth, UserType } from "@/lib/auth-context";
+import { useNotifications } from "@/lib/notifications-context";
 import { 
   User, Settings, MessageSquare, 
   Phone, CreditCard, LogOut,
-  Menu, X, LayoutDashboard, UserCircle, Star
+  Menu, X, LayoutDashboard, UserCircle, Star, Bell
 } from "lucide-react";
+import { Badge } from "@/app/components/ui/badge";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -22,7 +24,34 @@ interface NavItem {
   forUserTypes: UserType[];
 }
 
+// Wrapper that handles errors
 export function DashboardShell({ children }: DashboardShellProps) {
+  return (
+    <SafeDashboardShell>
+      {children}
+    </SafeDashboardShell>
+  );
+}
+
+// This component tries to use the NotificationsProvider and falls back gracefully
+function SafeDashboardShell({ children }: DashboardShellProps) {
+  // Get unread notification count safely
+  let unreadCount = 0;
+  try {
+    const notificationsContext = useNotifications();
+    if (notificationsContext) {
+      unreadCount = notificationsContext.unreadCount;
+    }
+  } catch (error) {
+    console.error("Error using notifications in dashboard shell:", error);
+    // Continue with zero unread count
+  }
+  
+  return <DashboardShellContent unreadCount={unreadCount} children={children} />;
+}
+
+// The actual dashboard shell content
+function DashboardShellContent({ children, unreadCount }: DashboardShellProps & { unreadCount: number }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const { userProfile, logout } = useAuth();
@@ -41,6 +70,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
       href: "/dashboard/messages",
       icon: MessageSquare,
       active: pathname === "/dashboard/messages" || pathname.startsWith("/dashboard/messages/"),
+    },
+    {
+      title: "Notifications",
+      href: "/dashboard/notifications",
+      icon: Bell,
+      active: pathname === "/dashboard/notifications",
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
   ];
   
@@ -79,6 +115,33 @@ export function DashboardShell({ children }: DashboardShellProps) {
     });
   }
   
+  // Update the navigation rendering to include badges
+  const renderNavItem = (item: any) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={cn(
+        "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
+        item.active
+          ? "bg-blue-50 text-blue-600"
+          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+      )}
+    >
+      <item.icon
+        className={cn(
+          "mr-3 h-5 w-5",
+          item.active ? "text-blue-700" : "text-gray-400 group-hover:text-gray-500"
+        )}
+      />
+      <span className="ml-3">{item.title}</span>
+      {item.badge && (
+        <Badge variant="destructive" className="ml-auto text-xs py-0.5 px-1.5">
+          {item.badge > 9 ? '9+' : item.badge}
+        </Badge>
+      )}
+    </Link>
+  );
+
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Mobile sidebar toggle */}
@@ -117,26 +180,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           
           <div className="mt-5 flex-1 h-0 overflow-y-auto">
             <nav className="px-2 space-y-1">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "group flex items-center px-2 py-2 text-base font-medium rounded-md",
-                    item.active
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      "mr-3 h-5 w-5",
-                      item.active ? "text-blue-700" : "text-gray-400 group-hover:text-gray-500"
-                    )}
-                  />
-                  <span className="ml-3">{item.title}</span>
-                </Link>
-              ))}
+              {navigationItems.map(renderNavItem)}
               
               <button
                 onClick={logout}
@@ -165,26 +209,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </div>
             <div className="flex-1 flex flex-col overflow-y-auto">
               <nav className="flex-1 px-2 py-4 space-y-1">
-                {navigationItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
-                      item.active
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        "mr-3 h-5 w-5",
-                        item.active ? "text-blue-700" : "text-gray-400 group-hover:text-gray-500"
-                      )}
-                    />
-                    <span className="ml-3">{item.title}</span>
-                  </Link>
-                ))}
+                {navigationItems.map(renderNavItem)}
                 
                 <button
                   onClick={logout}

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCircle, MessageSquare, Phone, Star } from 'lucide-react';
+import { Bell, CheckCircle, MessageSquare, Phone, Star, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNotifications } from '@/lib/notifications-context';
 import { Notification } from '@/lib/notifications-context';
@@ -17,27 +17,29 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { Avatar } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
+import Link from 'next/link';
 
+// This component safely catches errors
 export function NotificationDropdown() {
-  const [error, setError] = useState<string | null>(null);
-  
-  // Try/catch the hook usage to prevent app crashes
-  let notificationsData = {
-    notifications: [] as Notification[],
-    unreadCount: 0,
-    markAsRead: async (id: string) => {},
-    markAllAsRead: async () => {}
-  };
-  
   try {
-    notificationsData = useNotifications();
-  } catch (err) {
-    console.error("Error using notifications:", err);
-    setError("Unable to load notifications");
+    return <NotificationDropdownContent />;
+  } catch (error) {
+    console.error("Error in NotificationDropdown:", error);
+    // Render a minimal bell icon without any functionality
+    return (
+      <div className="relative">
+        <button className="text-white hover:text-blue-300">
+          <Bell className="h-4 w-4" />
+        </button>
+      </div>
+    );
   }
-  
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = notificationsData;
+}
+
+// This is the actual content component
+function NotificationDropdownContent() {
   const router = useRouter();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   // Format notification time
   const formatTime = (timestamp: any) => {
@@ -86,17 +88,6 @@ export function NotificationDropdown() {
     }
   };
 
-  // If there was an error with the hook, render minimal UI
-  if (error) {
-    return (
-      <div className="relative">
-        <button className="text-white hover:text-blue-300">
-          <Bell className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -112,22 +103,31 @@ export function NotificationDropdown() {
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-t-md">
           <DropdownMenuLabel className="font-medium text-gray-700 py-0">Notifications</DropdownMenuLabel>
-          {unreadCount > 0 && (
-            <Button
-              onClick={() => {
-                try {
-                  markAllAsRead();
-                } catch (err) {
-                  console.error("Error marking all as read:", err);
-                }
-              }}
-              variant="ghost"
-              size="sm"
-              className="text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2"
+          <div className="flex items-center space-x-2">
+            {unreadCount > 0 && (
+              <Button
+                onClick={() => {
+                  try {
+                    markAllAsRead();
+                  } catch (err) {
+                    console.error("Error marking all as read:", err);
+                  }
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2"
+              >
+                Mark all as read
+              </Button>
+            )}
+            <Link 
+              href="/dashboard/notifications" 
+              className="flex items-center text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2 font-medium"
             >
-              Mark all as read
-            </Button>
-          )}
+              <span>View all</span>
+              <ExternalLink className="ml-1 h-3 w-3" />
+            </Link>
+          </div>
         </div>
         <DropdownMenuSeparator className="mb-0" />
         
