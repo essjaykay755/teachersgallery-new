@@ -103,7 +103,7 @@ function NotificationDropdownContent() {
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-t-md">
           <DropdownMenuLabel className="font-medium text-gray-700 py-0">Notifications</DropdownMenuLabel>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             {unreadCount > 0 && (
               <Button
                 onClick={() => {
@@ -115,14 +115,14 @@ function NotificationDropdownContent() {
                 }}
                 variant="ghost"
                 size="sm"
-                className="text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2"
+                className="text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2 whitespace-nowrap"
               >
                 Mark all as read
               </Button>
             )}
             <Link 
               href="/dashboard/notifications" 
-              className="flex items-center text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2 font-medium"
+              className="flex items-center text-xs text-blue-600 hover:text-blue-800 h-6 py-0 px-2 font-medium whitespace-nowrap"
             >
               <span>View all</span>
               <ExternalLink className="ml-1 h-3 w-3" />
