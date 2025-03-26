@@ -9,8 +9,17 @@ import { useAuth } from "@/lib/auth-context";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, Trash2, X, Users, MapPin, Book } from "lucide-react";
 import AvatarInput from "@/app/components/shared/avatar-input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/app/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import { Button } from "@/app/components/ui/button";
+import { Separator } from "@/app/components/ui/separator";
+import { Badge } from "@/app/components/ui/badge";
+import { Input } from "@/app/components/ui/input";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { Label } from "@/app/components/ui/label";
 
 const classOptions = [
   "Pre-School", "Kindergarten",
@@ -50,6 +59,7 @@ function ParentEditProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("personal");
   
   const { user } = useAuth();
   const router = useRouter();
@@ -217,9 +227,11 @@ function ParentEditProfilePage() {
   if (isLoading) {
     return (
       <DashboardShell>
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-3 text-gray-600">Loading your profile...</p>
+        <div className="flex items-center justify-center w-full h-48">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Loading your profile...</p>
+          </div>
         </div>
       </DashboardShell>
     );
@@ -227,24 +239,49 @@ function ParentEditProfilePage() {
   
   return (
     <DashboardShell>
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={handleCancel}
-            className="mr-4 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-2xl font-bold tracking-tight">Edit Profile</h1>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold">Edit Profile</h1>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                  Saving
+                </>
+              ) : "Save Changes"}
+            </Button>
+          </div>
         </div>
         
-        <div className="bg-white shadow-sm rounded-lg p-6">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Avatar */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Profile Picture
-              </label>
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        {successMessage && (
+          <Alert className="mb-6 border-green-200 bg-green-50 text-green-800">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle>Success</AlertTitle>
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        )}
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center space-x-4">
               <AvatarInput 
                 userId={user?.uid || null}
                 initialAvatarUrl={avatarUrl}
@@ -268,228 +305,197 @@ function ParentEditProfilePage() {
                   }
                 }}
                 variant="compact"
-                size="md"
+                size="lg"
               />
-            </div>
-            
-            {/* Section: Personal Information */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h2>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    id="phoneNumber"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Section: Children & Location Information */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Family & Location Information</h2>
-              
-              {/* Children Ages */}
-              <div className="mb-6">
-                <label htmlFor="childrenAges" className="block text-sm font-medium text-gray-700 mb-1">
-                  Children's Ages *
-                </label>
-                <input
-                  id="childrenAges"
-                  type="text"
-                  value={childrenAges}
-                  onChange={(e) => setChildrenAges(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="e.g., 8, 12, 15"
-                  required
-                />
-                <p className="mt-1 text-xs text-gray-500">Separate multiple ages with commas</p>
-              </div>
-              
-              {/* Location */}
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
-                <div>
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                    Location *
-                  </label>
-                  <input
-                    id="location"
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    placeholder="City, State"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="areasServed" className="block text-sm font-medium text-gray-700 mb-1">
-                    Areas (where you want a teacher)
-                  </label>
-                  <input
-                    id="areasServed"
-                    type="text"
-                    value={areasServed}
-                    onChange={(e) => setAreasServed(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    placeholder="Neighborhoods, localities"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Section: Teaching Requirements */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Teaching Requirements</h2>
-              
-              {/* Subjects */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Subjects Required *
-                </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {selectedSubjects.map((subject) => (
-                    <div
-                      key={subject}
-                      className="flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
-                    >
-                      {subject}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubject(subject)}
-                        className="ml-1 rounded-full p-1 hover:bg-blue-200"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <div className="relative flex-grow">
-                    <input
-                      type="text"
-                      value={subjectInput}
-                      onChange={(e) => {
-                        setSubjectInput(e.target.value);
-                        setShowSubjectDropdown(true);
-                      }}
-                      className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                      placeholder="Add a subject your child needs to learn"
-                    />
-                    {showSubjectDropdown && subjectInput.length > 0 && (
-                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                        {filteredSubjects.length > 0 ? (
-                          filteredSubjects.map((subject) => (
-                            <div
-                              key={subject}
-                              onClick={() => handleSubjectSelect(subject)}
-                              className="relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-blue-100"
-                            >
-                              {subject}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-500">
-                            No matching subjects
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddCustomSubject}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Requirements */}
               <div>
-                <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
-                  Additional Requirements
-                </label>
-                <textarea
-                  id="requirements"
-                  rows={4}
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="Any specific requirements for the teacher, teaching style, schedule preferences, etc."
-                />
+                <CardTitle>Parent Profile</CardTitle>
+                <CardDescription>
+                  Update your information to find the best teachers for your children
+                </CardDescription>
               </div>
             </div>
-            
-            {/* Error/Success messages */}
-            {error && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <XCircle className="h-5 w-5 text-red-400" />
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-6">
+            <Tabs defaultValue="personal" className="w-full" onValueChange={setActiveTab} value={activeTab}>
+              <TabsList className="mb-6 grid w-full grid-cols-3">
+                <TabsTrigger value="personal" className="flex items-center gap-2">
+                  <User className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Personal</span>
+                </TabsTrigger>
+                <TabsTrigger value="family" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Family</span>
+                </TabsTrigger>
+                <TabsTrigger value="requirements" className="flex items-center gap-2">
+                  <Book className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Requirements</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <form onSubmit={handleSubmit}>
+                <TabsContent value="personal">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="fullName">Full Name</Label>
+                        <Input
+                          id="fullName"
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Your full name"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="phoneNumber">Phone Number</Label>
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="Your phone number"
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800">{error}</p>
+                </TabsContent>
+                
+                <TabsContent value="family">
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="childrenAges">Children's Ages</Label>
+                        <Input
+                          id="childrenAges"
+                          type="text"
+                          value={childrenAges}
+                          onChange={(e) => setChildrenAges(e.target.value)}
+                          placeholder="e.g., 8, 12, 15"
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">Separate multiple ages with commas</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Location</Label>
+                        <Input
+                          id="location"
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="City, State"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="areasServed">Areas (where you want a teacher)</Label>
+                        <Input
+                          id="areasServed"
+                          type="text"
+                          value={areasServed}
+                          onChange={(e) => setAreasServed(e.target.value)}
+                          placeholder="Neighborhoods, localities"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-            
-            {successMessage && (
-              <div className="rounded-md bg-green-50 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <CheckCircle className="h-5 w-5 text-green-400" />
+                </TabsContent>
+                
+                <TabsContent value="requirements">
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <Label>Subjects Required</Label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedSubjects.map((subject) => (
+                          <Badge 
+                            key={subject} 
+                            variant="secondary"
+                            className="py-1 px-3 flex items-center gap-1"
+                          >
+                            {subject}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubject(subject)}
+                              className="ml-1 rounded-full h-4 w-4 inline-flex items-center justify-center hover:bg-muted"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="relative flex-grow">
+                          <Input
+                            type="text"
+                            value={subjectInput}
+                            onChange={(e) => {
+                              setSubjectInput(e.target.value);
+                              setShowSubjectDropdown(true);
+                            }}
+                            placeholder="Add a subject your child needs to learn"
+                          />
+                          {showSubjectDropdown && subjectInput.length > 0 && (
+                            <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                              {filteredSubjects.length > 0 ? (
+                                filteredSubjects.map((subject) => (
+                                  <div
+                                    key={subject}
+                                    onClick={() => handleSubjectSelect(subject)}
+                                    className="relative cursor-pointer select-none px-3 py-2 hover:bg-blue-50 hover:text-blue-700"
+                                  >
+                                    {subject}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="relative cursor-default select-none px-3 py-2 text-gray-500">
+                                  No matching subjects
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Button type="button" size="icon" onClick={handleAddCustomSubject}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="requirements">Additional Requirements</Label>
+                      <Textarea
+                        id="requirements"
+                        value={requirements}
+                        onChange={(e) => setRequirements(e.target.value)}
+                        placeholder="Any specific requirements for the teacher, teaching style, schedule preferences, etc."
+                        className="min-h-[120px]"
+                      />
+                    </div>
                   </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">{successMessage}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Form Actions */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </div>
+                </TabsContent>
+              </form>
+            </Tabs>
+          </CardContent>
+          <CardFooter className="border-t pt-6 flex justify-between">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                  Saving
+                </>
+              ) : "Save Changes"}
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     </DashboardShell>
   );

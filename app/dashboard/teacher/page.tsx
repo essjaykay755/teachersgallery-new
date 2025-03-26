@@ -112,10 +112,10 @@ function TeacherDashboard() {
           </div>
         ) : teacherProfile ? (
           <>
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-              <div className="p-6 sm:p-8 bg-blue-50">
+            <div className="bg-white shadow rounded-xl overflow-hidden">
+              <div className="p-6 sm:p-8 bg-gradient-to-r from-blue-50 to-blue-100">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                  <div className="relative h-24 w-24 rounded-full overflow-hidden border-4 border-white">
+                  <div className="relative h-24 w-24 rounded-full overflow-hidden border-4 border-white shadow-md">
                     {teacherProfile.avatarUrl ? (
                       <Avatar className="h-24 w-24">
                         <AvatarImage src={teacherProfile.avatarUrl} alt={teacherProfile.name || "Teacher"} />
@@ -157,10 +157,10 @@ function TeacherDashboard() {
                 </div>
               </div>
               
-              <div className="px-6 py-4 border-t border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Profile Visibility</h3>
-                <div className="mt-2 flex items-center">
-                  <div className="flex-1">
+              <div className="px-6 py-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Profile Visibility</h3>
                     <p className="text-sm text-gray-500">
                       When enabled, your profile will be visible to students and parents
                     </p>
@@ -179,194 +179,156 @@ function TeacherDashboard() {
                 </div>
               </div>
               
-              <div className="px-6 py-4 border-t border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Contact Information</h3>
-                <div className="mt-2 space-y-2">
-                  <p className="text-sm text-gray-500">
-                    <span className="font-medium">Email:</span> {user?.email}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-500">
-                      <span className="font-medium">Phone:</span> {teacherProfile?.phoneNumber || "No phone number set"}
-                    </p>
-                    <button
-                      onClick={() => {
-                        const phoneNumber = prompt("Enter your phone number:", teacherProfile?.phoneNumber || "");
-                        if (phoneNumber !== null && user) {
-                          updateDoc(doc(db, "teachers", user.uid), {
-                            phoneNumber: phoneNumber
-                          })
-                            .then(() => {
-                              setTeacherProfile((prev: any) => ({
-                                ...prev,
-                                phoneNumber
-                              }));
-                              alert("Phone number updated successfully!");
-                            })
-                            .catch(error => {
-                              console.error("Error updating phone number:", error);
-                              alert("Failed to update phone number. Please try again.");
-                            });
-                        }
-                      }}
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      {teacherProfile?.phoneNumber ? "Update" : "Add"} Phone Number
-                    </button>
+              <div className="grid grid-cols-1 md:grid-cols-3 border-t border-gray-100">
+                <div className="p-6 border-b md:border-b-0 md:border-r border-gray-100">
+                  <div className="flex items-center">
+                    <div className="p-2 rounded-full bg-blue-50 text-blue-600 mr-4">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Students</p>
+                      <p className="text-2xl font-bold">0</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 border-b md:border-b-0 md:border-r border-gray-100">
+                  <div className="flex items-center">
+                    <div className="p-2 rounded-full bg-blue-50 text-blue-600 mr-4">
+                      <MessageSquare className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Messages</p>
+                      <p className="text-2xl font-bold">0</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 rounded-full bg-blue-50 text-blue-600 mr-4">
+                      <Star className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Rating</p>
+                      <div className="flex items-baseline">
+                        <p className="text-2xl font-bold">{averageRating || 0}</p>
+                        <p className="text-sm text-gray-500 ml-1">({reviewCount} reviews)</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-bold mb-3">Personal Information</h3>
+            <div className="bg-white shadow rounded-xl p-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Featured Status</h3>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Coming Soon
+                </span>
+              </div>
+              <p className="text-gray-500 mb-4">
+                Become a featured teacher to appear at the top of search results and attract more students.
+                This premium feature will be available soon for just ₹99/month.
+              </p>
+              <button 
+                disabled
+                className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-400 cursor-not-allowed"
+              >
+                Get Featured (Coming Soon)
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              <div className="bg-white shadow rounded-xl p-6">
+                <h3 className="text-lg font-bold mb-4">Personal Information</h3>
                 
                 <div className="space-y-4">
-                  <div>
+                  <div className="grid grid-cols-3 gap-4 items-center">
                     <p className="text-sm text-gray-500">Full Name</p>
-                    <p className="font-medium">{teacherProfile.name || "Not provided"}</p>
+                    <p className="font-medium col-span-2">{teacherProfile.name || "Not provided"}</p>
                   </div>
                   
-                  <div>
+                  <div className="grid grid-cols-3 gap-4 items-center">
                     <p className="text-sm text-gray-500">Contact Email</p>
-                    <p className="font-medium">{teacherProfile.email || "Not provided"}</p>
+                    <p className="font-medium col-span-2">{teacherProfile.email || "Not provided"}</p>
                   </div>
                   
-                  <div>
+                  <div className="grid grid-cols-3 gap-4 items-center">
                     <p className="text-sm text-gray-500">Phone Number</p>
-                    <p className="font-medium">{teacherProfile.phoneNumber || "Not provided"}</p>
+                    <div className="col-span-2 flex items-center justify-between">
+                      <p className="font-medium">{teacherProfile.phoneNumber || "Not provided"}</p>
+                      {!teacherProfile.phoneNumber && (
+                        <button
+                          onClick={() => {
+                            const phoneNumber = prompt("Enter your phone number:", teacherProfile?.phoneNumber || "");
+                            if (phoneNumber !== null && user) {
+                              updateDoc(doc(db, "teachers", user.uid), {
+                                phoneNumber: phoneNumber
+                              })
+                                .then(() => {
+                                  setTeacherProfile((prev: any) => ({
+                                    ...prev,
+                                    phoneNumber
+                                  }));
+                                  alert("Phone number updated successfully!");
+                                })
+                                .catch(error => {
+                                  console.error("Error updating phone number:", error);
+                                  alert("Failed to update phone number. Please try again.");
+                                });
+                            }
+                          }}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Add
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
               
-              <div>
-                <h3 className="text-lg font-bold mb-3">Teaching Information</h3>
+              <div className="bg-white shadow rounded-xl p-6">
+                <h3 className="text-lg font-bold mb-4">Teaching Information</h3>
                 
                 <div className="space-y-4">
-                  <div>
+                  <div className="grid grid-cols-3 gap-4 items-center">
                     <p className="text-sm text-gray-500">Subjects</p>
-                    <p className="font-medium">
+                    <p className="font-medium col-span-2">
                       {teacherProfile.subjects && teacherProfile.subjects.length > 0
                         ? teacherProfile.subjects.join(", ")
-                        : teacherProfile.subject || "Not provided"}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500">Experience</p>
-                    <p className="font-medium">
-                      {teacherProfile.yearsOfExperience 
-                        ? `${teacherProfile.yearsOfExperience}` 
-                        : teacherProfile.experience 
-                          ? `${teacherProfile.experience} years`
-                          : "Not provided"}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-500">Teaching Modes</p>
-                    <p className="font-medium">
-                      {teacherProfile.teachingModes && teacherProfile.teachingModes.length > 0
-                        ? teacherProfile.teachingModes.join(", ")
-                        : teacherProfile.teachingMode && teacherProfile.teachingMode.length > 0
-                          ? teacherProfile.teachingMode.join(", ")
-                          : "Not provided"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-6">
-              <h3 className="text-lg font-bold mb-3">Location & Fees</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-500">Location</p>
-                  <p className="font-medium">{teacherProfile.location || "Not provided"}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Areas Served</p>
-                  <p className="font-medium">{teacherProfile.areasServed || "Not provided"}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500">Fees Per Hour</p>
-                  <p className="font-medium">
-                    {teacherProfile.feesPerHour 
-                      ? `₹${teacherProfile.feesPerHour}` 
-                      : teacherProfile.feeRange 
-                        ? `₹${teacherProfile.feeRange.min || 0} - ₹${teacherProfile.feeRange.max || 0}` 
                         : "Not provided"}
-                  </p>
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 items-center">
+                    <p className="text-sm text-gray-500">Experience</p>
+                    <p className="font-medium col-span-2">
+                      {teacherProfile.experience
+                        ? `${teacherProfile.experience} years`
+                        : "Not provided"}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 items-center">
+                    <p className="text-sm text-gray-500">Fee Range</p>
+                    <p className="font-medium col-span-2">
+                      {teacherProfile.feeRange
+                        ? `₹${teacherProfile.feeRange.min} - ₹${teacherProfile.feeRange.max}/hr`
+                        : "Not provided"}
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-4 items-center">
+                    <p className="text-sm text-gray-500">Teaching Mode</p>
+                    <p className="font-medium col-span-2">
+                      {teacherProfile.teachingMode && teacherProfile.teachingMode.length > 0
+                        ? teacherProfile.teachingMode.join(", ")
+                        : "Not provided"}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Messages</CardTitle>
-                  <MessageSquare className="h-4 w-4 text-gray-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">0</div>
-                  <p className="text-xs text-gray-500">Unread messages</p>
-                  <button 
-                    onClick={() => router.push("/dashboard/messages")}
-                    className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"
-                  >
-                    View Messages <ChevronRight className="h-3 w-3 ml-1" />
-                  </button>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Phone Requests</CardTitle>
-                  <Phone className="h-4 w-4 text-gray-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">0</div>
-                  <p className="text-xs text-gray-500">Pending requests</p>
-                  <button 
-                    onClick={() => router.push("/dashboard/phone-requests")}
-                    className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center"
-                  >
-                    View Requests <ChevronRight className="h-3 w-3 ml-1" />
-                  </button>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Profile Views</CardTitle>
-                  <Users className="h-4 w-4 text-gray-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">0</div>
-                  <p className="text-xs text-gray-500">Last 30 days</p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Rating</CardTitle>
-                  <Star className="h-4 w-4 text-gray-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {reviewCount > 0 ? averageRating.toFixed(1) : 'No ratings'}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {reviewCount > 0 ? 
-                      `From ${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'}` : 
-                      'No reviews yet'}
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           </>
         ) : (

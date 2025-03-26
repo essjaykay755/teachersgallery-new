@@ -6,10 +6,11 @@ import Image from "next/image";
 import { DashboardShell } from "@/app/components/layout/dashboard-shell";
 import withAuth from "@/lib/withAuth";
 import { useAuth } from "@/lib/auth-context";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/shared/card";
-import { MessageSquare, School, Users, Edit } from "lucide-react";
+import { MessageSquare, School, Users, Edit, Phone } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/shared/avatar";
 
 // Add a helper function for cache-busting after the import statements
 // but before any component definitions
@@ -32,6 +33,7 @@ function getCacheBustedUrl(url: string | null | undefined): string {
 function ParentDashboardPage() {
   const [parentProfile, setParentProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [phoneRequests, setPhoneRequests] = useState<any[]>([]);
   const { user } = useAuth();
   const router = useRouter();
   
@@ -53,6 +55,25 @@ function ParentDashboardPage() {
     };
     
     fetchParentProfile();
+  }, [user]);
+  
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchPhoneRequestsCount = async () => {
+      try {
+        const requestsQuery = query(
+          collection(db, "phoneNumberRequests"),
+          where("requesterId", "==", user.uid)
+        );
+        const snapshot = await getDocs(requestsQuery);
+        setPhoneRequests(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+      } catch (error) {
+        console.error("Error fetching phone requests:", error);
+      }
+    };
+    
+    fetchPhoneRequestsCount();
   }, [user]);
   
   const handleEditProfile = () => {
@@ -151,14 +172,14 @@ function ParentDashboardPage() {
                 </CardContent>
               </Card>
               
-              <Card>
+              <Card onClick={() => router.push('/dashboard/phone-requests')} className="cursor-pointer hover:bg-blue-50 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Contacted Teachers</CardTitle>
-                  <School className="h-4 w-4 text-gray-500" />
+                  <CardTitle className="text-sm font-medium">Phone Requests</CardTitle>
+                  <Phone className="h-4 w-4 text-gray-500" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">0</div>
-                  <p className="text-xs text-gray-500">Teachers you've contacted</p>
+                  <div className="text-2xl font-bold">{phoneRequests.length}</div>
+                  <p className="text-xs text-gray-500">Phone number requests to teachers</p>
                 </CardContent>
               </Card>
               

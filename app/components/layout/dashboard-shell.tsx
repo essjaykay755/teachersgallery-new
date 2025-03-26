@@ -4,7 +4,7 @@ import { useState, ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useAuth, UserType } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { 
   User, Settings, MessageSquare, 
@@ -12,16 +12,12 @@ import {
   Menu, X, LayoutDashboard, UserCircle, Star, Bell
 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { ScrollArea } from "@/app/components/ui/scroll-area";
+import { Separator } from "@/app/components/ui/separator";
 
 interface DashboardShellProps {
   children: ReactNode;
-}
-
-interface NavItem {
-  title: string;
-  href: string;
-  icon: ReactNode;
-  forUserTypes: UserType[];
 }
 
 // Wrapper that handles errors
@@ -52,13 +48,23 @@ function SafeDashboardShell({ children }: DashboardShellProps) {
 
 // The actual dashboard shell content
 function DashboardShellContent({ children, unreadCount }: DashboardShellProps & { unreadCount: number }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const { userProfile, logout } = useAuth();
   
   const isTeacher = userProfile?.userType === "teacher";
   
-  const navigationItems = [
+  // Define the type for navigation items
+  type NavigationItem = {
+    title: string;
+    href: string;
+    icon: any;
+    active: boolean;
+    badge?: number;
+    disabled?: boolean;
+  };
+  
+  const navigationItems: NavigationItem[] = [
     {
       title: "Dashboard",
       href: `/dashboard/${userProfile?.userType || ""}`,
@@ -108,144 +114,130 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
   // Add a payment link only for teachers
   if (isTeacher) {
     navigationItems.push({
-      title: "Featured Status",
-      href: "/dashboard/payments",
+      title: "Featured",
+      href: "#",
       icon: CreditCard,
-      active: pathname === "/dashboard/payments",
+      active: false,
+      disabled: true,
     });
   }
-  
-  // Update the navigation rendering to include badges
-  const renderNavItem = (item: any) => (
+
+  // Render a vertical tab navigation item
+  const renderTabItem = (item: any) => (
     <Link
       key={item.href}
-      href={item.href}
+      href={item.disabled ? "#" : item.href}
+      onClick={(e) => {
+        if (item.disabled) {
+          e.preventDefault();
+        }
+      }}
       className={cn(
-        "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
-        item.active
-          ? "bg-blue-50 text-blue-600"
-          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        "flex items-center gap-3 py-2.5 px-4 text-sm rounded-md mx-2 my-0.5 transition-all",
+        item.active 
+          ? "text-blue-600 bg-blue-50 font-medium" 
+          : "text-gray-700 hover:bg-gray-100",
+        item.disabled && "opacity-80 cursor-not-allowed hover:bg-transparent"
       )}
     >
-      <item.icon
-        className={cn(
-          "mr-3 h-5 w-5",
-          item.active ? "text-blue-700" : "text-gray-400 group-hover:text-gray-500"
-        )}
-      />
-      <span className="ml-3">{item.title}</span>
+      <item.icon className={cn("h-[18px] w-[18px]", item.active ? "text-blue-600" : "text-gray-500")} />
+      <span className="flex-1">{item.title}</span>
       {item.badge && (
-        <Badge variant="destructive" className="ml-auto text-xs py-0.5 px-1.5">
+        <Badge variant="destructive" className="ml-auto text-xs py-0.5 px-1.5 rounded-full">
           {item.badge > 9 ? '9+' : item.badge}
         </Badge>
+      )}
+      {item.disabled && (
+        <span className="ml-auto flex items-center">
+          <Badge variant="outline" className="text-xs py-0.5 px-2 rounded-full bg-blue-50 text-blue-600 border-blue-100">
+            Soon
+          </Badge>
+        </span>
       )}
     </Link>
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Mobile sidebar toggle */}
-      <div className="fixed inset-0 flex z-40 lg:hidden" role="dialog" aria-modal="true">
-        <div 
-          className={cn(
-            "fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity ease-in-out duration-300",
-            sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          )}
-          aria-hidden="true"
-          onClick={() => setSidebarOpen(false)}
-        ></div>
-        
-        <div 
-          className={cn(
-            "relative flex-1 flex flex-col max-w-xs w-full pt-5 pb-4 bg-white transform transition ease-in-out duration-300",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile header */}
+      <header className="sticky top-0 z-10 flex h-16 items-center bg-white border-b shadow-sm lg:hidden">
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="px-4 text-gray-500 hover:text-gray-900"
         >
-          <div className="absolute top-0 right-0 -mr-12 pt-2">
+          <Menu className="h-6 w-6" />
+        </button>
+        <span className="text-xl font-semibold text-blue-600 ml-4">TeachersGallery</span>
+      </header>
+      
+      {/* Mobile menu overlay */}
+      <div 
+        className={cn(
+          "fixed inset-0 z-50 bg-gray-800/70 lg:hidden transition-opacity",
+          mobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+      
+      {/* Mobile menu */}
+      <div
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-lg transition-transform lg:hidden",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex h-16 items-center justify-between px-4 border-b">
+          <Link href="/" className="text-xl font-semibold text-blue-600">
+            TeachersGallery
+          </Link>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        <ScrollArea className="h-[calc(100vh-4rem)]">
+          <div className="flex flex-col py-2 px-2">
+            {navigationItems.map(renderTabItem)}
+            <Separator className="my-2 mx-2" />
             <button
-              type="button"
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setSidebarOpen(false)}
+              onClick={logout}
+              className="flex items-center gap-3 py-2.5 px-4 text-sm rounded-md mx-2 my-0.5 text-red-600 hover:bg-red-50 transition-all"
             >
-              <span className="sr-only">Close sidebar</span>
-              <X className="h-6 w-6 text-white" />
+              <LogOut className="h-[18px] w-[18px]" />
+              <span>Logout</span>
             </button>
           </div>
-          
-          <div className="flex-shrink-0 flex items-center px-4">
-            <Link href="/" className="text-2xl font-bold text-blue-600">
-              TeachersGallery
-            </Link>
-          </div>
-          
-          <div className="mt-5 flex-1 h-0 overflow-y-auto">
-            <nav className="px-2 space-y-1">
-              {navigationItems.map(renderNavItem)}
-              
-              <button
-                onClick={logout}
-                className="w-full group flex items-center px-2 py-2 text-base font-medium rounded-md text-red-600 hover:bg-red-50"
-              >
-                <LogOut className="h-5 w-5 text-red-500" />
-                <span className="ml-3">Logout</span>
-              </button>
-            </nav>
-          </div>
-        </div>
-        
-        <div className="flex-shrink-0 w-14" aria-hidden="true">
-          {/* Dummy element to force sidebar to shrink to fit close icon */}
-        </div>
+        </ScrollArea>
       </div>
       
-      {/* Static sidebar for desktop */}
-      <div className="hidden lg:flex lg:flex-shrink-0">
-        <div className="flex flex-col w-64">
-          <div className="flex flex-col h-0 flex-1 border-r border-gray-200 bg-white">
-            <div className="flex items-center h-16 flex-shrink-0 px-4 bg-white border-b">
-              <Link href="/" className="text-2xl font-bold text-blue-600">
-                TeachersGallery
-              </Link>
-            </div>
-            <div className="flex-1 flex flex-col overflow-y-auto">
-              <nav className="flex-1 px-2 py-4 space-y-1">
-                {navigationItems.map(renderNavItem)}
-                
+      {/* Container with vertical tabbed navigation and content */}
+      <div className="mx-auto max-w-6xl p-4 md:p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Vertical tabbed navigation */}
+          <div className="hidden lg:block w-60 shrink-0">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-2 h-fit">
+              <div className="flex flex-col">
+                {navigationItems.map(renderTabItem)}
+                <Separator className="my-2 mx-2" />
                 <button
                   onClick={logout}
-                  className="w-full group flex items-center px-2 py-2 text-sm font-medium rounded-md text-red-600 hover:bg-red-50"
+                  className="flex items-center gap-3 py-2.5 px-4 text-sm rounded-md mx-2 my-0.5 text-red-600 hover:bg-red-50 transition-all"
                 >
-                  <LogOut className="h-5 w-5 text-red-500" />
-                  <span className="ml-3">Logout</span>
+                  <LogOut className="h-[18px] w-[18px]" />
+                  <span>Logout</span>
                 </button>
-              </nav>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-      
-      <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white border-b border-gray-200 lg:hidden">
-          <button
-            type="button"
-            className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <span className="sr-only">Open sidebar</span>
-            <Menu className="h-6 w-6" />
-          </button>
-          <div className="flex-1 flex justify-center px-4 lg:px-0">
-            <div className="flex-1 flex items-center">
-              <Link href="/" className="text-2xl font-bold text-blue-600 lg:hidden">
-                TeachersGallery
-              </Link>
-            </div>
+          
+          {/* Main content */}
+          <div className="flex-1">
+            {children}
           </div>
         </div>
-        
-        <main className="flex-1 relative overflow-y-auto focus:outline-none p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
       </div>
     </div>
   );

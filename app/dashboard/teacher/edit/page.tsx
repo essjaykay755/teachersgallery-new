@@ -9,8 +9,20 @@ import { useAuth } from "@/lib/auth-context";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, X } from "lucide-react";
+import { ArrowLeft, Upload, User, CheckCircle, XCircle, Plus, X, Pencil, School, BookOpen, MapPin, Clock, CreditCard, ExternalLink } from "lucide-react";
 import AvatarInput from "@/app/components/shared/avatar-input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/app/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import { Button } from "@/app/components/ui/button";
+import { Separator } from "@/app/components/ui/separator";
+import { Badge } from "@/app/components/ui/badge";
+import { Input } from "@/app/components/ui/input";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
+import { Switch } from "@/app/components/ui/switch";
+import { Label } from "@/app/components/ui/label";
+import { Checkbox } from "@/app/components/ui/checkbox";
 
 function TeacherEditProfilePage() {
   const [fullName, setFullName] = useState("");
@@ -48,6 +60,7 @@ function TeacherEditProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("personal");
   
   const { user } = useAuth();
   const router = useRouter();
@@ -262,8 +275,6 @@ function TeacherEditProfilePage() {
       setError(null);
       setSuccessMessage(null);
       
-      // avatarUrl is already in state, so no need to reassign or upload
-      
       // Prepare teacher data
       const teacherData: any = {
         name: fullName,
@@ -331,9 +342,11 @@ function TeacherEditProfilePage() {
   if (isLoading) {
     return (
       <DashboardShell>
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-3 text-gray-600">Loading your profile...</p>
+        <div className="flex items-center justify-center w-full h-48">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Loading your profile...</p>
+          </div>
         </div>
       </DashboardShell>
     );
@@ -341,24 +354,49 @@ function TeacherEditProfilePage() {
   
   return (
     <DashboardShell>
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={handleCancel}
-            className="mr-4 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-2xl font-bold tracking-tight">Edit Profile</h1>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold">Edit Profile</h1>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                  Saving
+                </>
+              ) : "Save Changes"}
+            </Button>
+          </div>
         </div>
         
-        <div className="bg-white shadow-sm rounded-lg p-6">
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Avatar */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Profile Picture
-              </label>
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        {successMessage && (
+          <Alert className="mb-6 border-green-200 bg-green-50 text-green-800">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle>Success</AlertTitle>
+            <AlertDescription>{successMessage}</AlertDescription>
+          </Alert>
+        )}
+        
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center space-x-4">
               <AvatarInput 
                 userId={user?.uid || null}
                 initialAvatarUrl={avatarUrl}
@@ -382,550 +420,495 @@ function TeacherEditProfilePage() {
                   }
                 }}
                 variant="compact"
-                size="md"
+                size="lg"
               />
-            </div>
-            
-            {/* Section: Personal Information */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h2>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    id="phoneNumber"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Section: Professional Information */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Professional Information</h2>
-              
-              {/* Years of Experience */}
-              <div className="mb-6">
-                <label htmlFor="yearsOfExperience" className="block text-sm font-medium text-gray-700 mb-1">
-                  Years of Experience *
-                </label>
-                <select
-                  id="yearsOfExperience"
-                  value={yearsOfExperience}
-                  onChange={(e) => setYearsOfExperience(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  required
-                >
-                  <option value="">Select Experience</option>
-                  <option value="Less than 1 year">Less than 1 year</option>
-                  <option value="1-2 years">1-2 years</option>
-                  <option value="3-5 years">3-5 years</option>
-                  <option value="6-10 years">6-10 years</option>
-                  <option value="More than 10 years">More than 10 years</option>
-                </select>
-              </div>
-              
-              {/* Professional Summary */}
-              <div className="mb-6">
-                <label htmlFor="professionalSummary" className="block text-sm font-medium text-gray-700 mb-1">
-                  Professional Summary *
-                </label>
-                <textarea
-                  id="professionalSummary"
-                  rows={4}
-                  value={professionalSummary}
-                  onChange={(e) => setProfessionalSummary(e.target.value)}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  placeholder="Describe your teaching experience and approach"
-                  required
-                />
-              </div>
-              
-              {/* Subjects */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Subjects You Teach *
-                </label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {selectedSubjects.map((subject) => (
-                    <div
-                      key={subject}
-                      className="flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
-                    >
-                      {subject}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubject(subject)}
-                        className="ml-1 rounded-full p-1 hover:bg-blue-200"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={subjectInput}
-                    onChange={(e) => {
-                      setSubjectInput(e.target.value);
-                      setShowSubjectDropdown(true);
-                    }}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    placeholder="Add a subject you teach"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomSubject}
-                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Qualifications */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Qualifications
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleAddQualification}
-                    className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </button>
-                </div>
-                
-                {qualifications.map((qualification, index) => (
-                  <div key={index} className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4 p-3 border border-gray-200 rounded-md">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">
-                        Degree/Certificate
-                      </label>
-                      <input
-                        type="text"
-                        value={qualification.degree}
-                        onChange={(e) =>
-                          handleQualificationChange(index, "degree", e.target.value)
-                        }
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        placeholder="e.g., B.Sc., M.Ed."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">
-                        Institution
-                      </label>
-                      <input
-                        type="text"
-                        value={qualification.institution}
-                        onChange={(e) =>
-                          handleQualificationChange(index, "institution", e.target.value)
-                        }
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        placeholder="University/College name"
-                      />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <div className="flex-grow">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Year
-                        </label>
-                        <input
+                <CardTitle>Your Profile</CardTitle>
+                <CardDescription>
+                  Update your information to help students and parents find you
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-6">
+            <Tabs defaultValue="personal" className="w-full" onValueChange={setActiveTab} value={activeTab}>
+              <TabsList className="mb-6 grid w-full grid-cols-4">
+                <TabsTrigger value="personal" className="flex items-center gap-2">
+                  <User className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Personal</span>
+                </TabsTrigger>
+                <TabsTrigger value="professional" className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Professional</span>
+                </TabsTrigger>
+                <TabsTrigger value="experience" className="flex items-center gap-2">
+                  <School className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Experience</span>
+                </TabsTrigger>
+                <TabsTrigger value="teaching" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Teaching</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <form onSubmit={handleSubmit}>
+                <TabsContent value="personal">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="fullName">Full Name</Label>
+                        <Input
+                          id="fullName"
                           type="text"
-                          value={qualification.year}
-                          onChange={(e) =>
-                            handleQualificationChange(index, "year", e.target.value)
-                          }
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                          placeholder="e.g., 2020"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Your full name"
+                          required
                         />
                       </div>
                       
-                      {qualifications.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveQualification(index)}
-                          className="mb-1 p-2 text-red-600 hover:text-red-800 focus:outline-none"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Work History */}
-            <div className="my-8">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Work History</h3>
-                <button
-                  type="button"
-                  onClick={handleAddWorkHistoryEntry}
-                  className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Experience
-                </button>
-              </div>
-              
-              {workHistory.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-md border border-dashed border-gray-300">
-                  <p className="text-gray-500">No work history added yet.</p>
-                  <button
-                    type="button"
-                    onClick={handleAddWorkHistoryEntry}
-                    className="mt-2 text-blue-600 text-sm hover:underline"
-                  >
-                    + Add your first work experience
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {workHistory.map((work, index) => (
-                    <div key={`work-${index}`} className="relative border border-gray-200 rounded-md p-4 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => removeWorkHistoryEntry(index)}
-                        className="absolute top-2 right-2 text-gray-400 hover:text-red-500"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
-                      
-                      <div className="grid grid-cols-1 gap-y-4 gap-x-6 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Position *
-                          </label>
-                          <input
-                            type="text"
-                            value={work.position}
-                            onChange={(e) => updateWorkHistoryEntry(index, 'position', e.target.value)}
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="e.g., Mathematics Teacher"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Organization *
-                          </label>
-                          <input
-                            type="text"
-                            value={work.organization}
-                            onChange={(e) => updateWorkHistoryEntry(index, 'organization', e.target.value)}
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="e.g., ABC School"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Start Date *
-                          </label>
-                          <input
-                            type="text"
-                            value={work.startDate}
-                            onChange={(e) => updateWorkHistoryEntry(index, 'startDate', e.target.value)}
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="e.g., June 2018"
-                          />
-                        </div>
-                        
-                        <div>
-                          <div className="flex justify-between">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              End Date
-                            </label>
-                            <div className="flex items-center">
-                              <input
-                                type="checkbox"
-                                id={`current-${index}`}
-                                checked={work.current}
-                                onChange={(e) => updateWorkHistoryEntry(index, 'current', e.target.checked)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                              />
-                              <label htmlFor={`current-${index}`} className="ml-2 text-sm text-gray-600">
-                                Current
-                              </label>
-                            </div>
-                          </div>
-                          <input
-                            type="text"
-                            value={work.endDate}
-                            onChange={(e) => updateWorkHistoryEntry(index, 'endDate', e.target.value)}
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="e.g., May 2022"
-                            disabled={work.current}
-                          />
-                        </div>
-                        
-                        <div className="sm:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Description
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={work.description}
-                            onChange={(e) => updateWorkHistoryEntry(index, 'description', e.target.value)}
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            placeholder="Describe your responsibilities and achievements"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="phoneNumber">Phone Number</Label>
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="Your phone number"
+                          required
+                        />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {/* Section: Location & Teaching Details */}
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Location & Teaching Details</h2>
-              
-              {/* Location */}
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
-                <div>
-                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                    Location *
-                  </label>
-                  <input
-                    id="location"
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    placeholder="City, State"
-                    required
-                  />
-                </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="professionalSummary">Professional Summary</Label>
+                      <Textarea
+                        id="professionalSummary"
+                        value={professionalSummary}
+                        onChange={(e) => setProfessionalSummary(e.target.value)}
+                        placeholder="Tell students and parents about your teaching experience and approach"
+                        className="min-h-[120px]"
+                      />
+                    </div>
+                    
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={isVisible}
+                          onCheckedChange={(checked) => setIsVisible(checked)}
+                          id="visibility"
+                        />
+                        <Label htmlFor="visibility" className="cursor-pointer">
+                          Make my profile visible in search results
+                        </Label>
+                      </div>
+                      <p className="text-sm text-muted-foreground pl-10">
+                        When enabled, students and parents can find and contact you
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
                 
-                <div>
-                  <label htmlFor="areasServed" className="block text-sm font-medium text-gray-700 mb-1">
-                    Areas Served *
-                  </label>
-                  <input
-                    id="areasServed"
-                    type="text"
-                    value={areasServed}
-                    onChange={(e) => setAreasServed(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    placeholder="Neighborhoods, districts, etc."
-                    required
-                  />
-                </div>
-              </div>
-              
-              {/* Teaching Mode */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Teaching Mode *
-                </label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div className="flex items-start">
-                    <div className="flex h-5 items-center">
-                      <input
-                        id="online"
-                        type="checkbox"
-                        checked={teachingMode.includes("Online")}
-                        onChange={() => handleTeachingModeChange("Online")}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
+                <TabsContent value="professional">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="yearsOfExperience">Years of Experience</Label>
+                      <Select 
+                        value={yearsOfExperience} 
+                        onValueChange={setYearsOfExperience}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your experience" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Less than 1 year">Less than 1 year</SelectItem>
+                          <SelectItem value="1-2 years">1-2 years</SelectItem>
+                          <SelectItem value="3-5 years">3-5 years</SelectItem>
+                          <SelectItem value="6-10 years">6-10 years</SelectItem>
+                          <SelectItem value="More than 10 years">More than 10 years</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="online" className="font-medium text-gray-700">
-                        Online
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <div className="flex h-5 items-center">
-                      <input
-                        id="offline"
-                        type="checkbox"
-                        checked={teachingMode.includes("Offline")}
-                        onChange={() => handleTeachingModeChange("Offline")}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="offline" className="font-medium text-gray-700">
-                        Offline
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start">
-                    <div className="flex h-5 items-center">
-                      <input
-                        id="hybrid"
-                        type="checkbox"
-                        checked={teachingMode.includes("Hybrid")}
-                        onChange={() => handleTeachingModeChange("Hybrid")}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="ml-3 text-sm">
-                      <label htmlFor="hybrid" className="font-medium text-gray-700">
-                        Hybrid
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Fee Range */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fee Range (₹ per hour) *
-                </label>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="minFee" className="sr-only">
-                      Minimum Fee
-                    </label>
-                    <div className="relative mt-1 rounded-md shadow-sm">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 sm:text-sm">₹</span>
+                    
+                    <div className="space-y-2">
+                      <Label>Subjects You Teach</Label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedSubjects.map((subject) => (
+                          <Badge 
+                            key={subject} 
+                            variant="secondary"
+                            className="py-1 px-3 flex items-center gap-1"
+                          >
+                            {subject}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubject(subject)}
+                              className="ml-1 rounded-full h-4 w-4 inline-flex items-center justify-center hover:bg-muted"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
                       </div>
-                      <input
-                        id="minFee"
-                        type="number"
-                        min="0"
-                        value={feeRange.min}
-                        onChange={(e) => setFeeRange({ ...feeRange, min: e.target.value })}
-                        className="block w-full rounded-md border-gray-300 pl-7 pr-12 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        placeholder="Min"
-                        required
-                      />
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <span className="text-gray-500 sm:text-sm">/hr</span>
+                      <div className="flex gap-2">
+                        <Input
+                          type="text"
+                          value={subjectInput}
+                          onChange={(e) => {
+                            setSubjectInput(e.target.value);
+                            setShowSubjectDropdown(true);
+                          }}
+                          className="flex-grow"
+                          placeholder="Add a subject you teach"
+                        />
+                        <Button type="button" size="icon" onClick={handleAddCustomSubject}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="maxFee" className="sr-only">
-                      Maximum Fee
-                    </label>
-                    <div className="relative mt-1 rounded-md shadow-sm">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 sm:text-sm">₹</span>
+                    
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label>Qualifications</Label>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleAddQualification}
+                          className="h-8 text-xs"
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Add Qualification
+                        </Button>
                       </div>
-                      <input
-                        id="maxFee"
-                        type="number"
-                        min="0"
-                        value={feeRange.max}
-                        onChange={(e) => setFeeRange({ ...feeRange, max: e.target.value })}
-                        className="block w-full rounded-md border-gray-300 pl-7 pr-12 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                        placeholder="Max"
-                        required
-                      />
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                        <span className="text-gray-500 sm:text-sm">/hr</span>
+                      
+                      <div className="space-y-3">
+                        {qualifications.map((qualification, index) => (
+                          <Card key={index} className="shadow-none border border-muted">
+                            <CardContent className="p-4">
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Degree/Certificate</Label>
+                                  <Input
+                                    type="text"
+                                    value={qualification.degree}
+                                    onChange={(e) =>
+                                      handleQualificationChange(index, "degree", e.target.value)
+                                    }
+                                    placeholder="e.g., B.Sc., M.Ed."
+                                    className="h-9"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Institution</Label>
+                                  <Input
+                                    type="text"
+                                    value={qualification.institution}
+                                    onChange={(e) =>
+                                      handleQualificationChange(index, "institution", e.target.value)
+                                    }
+                                    placeholder="University/College name"
+                                    className="h-9"
+                                  />
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <div className="flex-grow space-y-2">
+                                    <Label className="text-xs">Year</Label>
+                                    <Input
+                                      type="text"
+                                      value={qualification.year}
+                                      onChange={(e) =>
+                                        handleQualificationChange(index, "year", e.target.value)
+                                      }
+                                      placeholder="e.g., 2020"
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  
+                                  {qualifications.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleRemoveQualification(index)}
+                                      className="mt-5 h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              
-              {/* Profile Visibility */}
-              <div>
-                <div className="flex items-start">
-                  <div className="flex h-5 items-center">
-                    <input
-                      id="visibility"
-                      type="checkbox"
-                      checked={isVisible}
-                      onChange={() => setIsVisible(!isVisible)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
+                </TabsContent>
+                
+                <TabsContent value="experience">
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-medium">Work History</h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddWorkHistoryEntry}
+                        className="h-8 gap-1"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Experience
+                      </Button>
+                    </div>
+                    
+                    {workHistory.length === 0 ? (
+                      <div className="border border-dashed border-muted rounded-lg p-8 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <School className="h-8 w-8 text-muted-foreground" />
+                          <h3 className="text-muted-foreground font-medium">No work history added</h3>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Add your teaching experience to showcase your expertise
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddWorkHistoryEntry}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Work Experience
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {workHistory.map((work, index) => (
+                          <Card key={`work-${index}`} className="shadow-none border border-muted">
+                            <CardHeader className="p-4 pb-0 flex flex-row items-start justify-between">
+                              <div className="flex flex-col space-y-1">
+                                <h4 className="font-medium">{work.position || "New Position"}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {work.organization || "Organization"} • {work.startDate || "Start Date"} 
+                                  {work.current ? " - Present" : work.endDate ? ` - ${work.endDate}` : ""}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeWorkHistoryEntry(index)}
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </CardHeader>
+                            <CardContent className="p-4">
+                              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label>Position</Label>
+                                  <Input
+                                    type="text"
+                                    value={work.position}
+                                    onChange={(e) => updateWorkHistoryEntry(index, 'position', e.target.value)}
+                                    placeholder="e.g., Mathematics Teacher"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Organization</Label>
+                                  <Input
+                                    type="text"
+                                    value={work.organization}
+                                    onChange={(e) => updateWorkHistoryEntry(index, 'organization', e.target.value)}
+                                    placeholder="e.g., ABC School"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <Label>Start Date</Label>
+                                  <Input
+                                    type="text"
+                                    value={work.startDate}
+                                    onChange={(e) => updateWorkHistoryEntry(index, 'startDate', e.target.value)}
+                                    placeholder="e.g., June 2018"
+                                  />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <div className="flex justify-between">
+                                    <Label>End Date</Label>
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={`current-${index}`}
+                                        checked={work.current}
+                                        onCheckedChange={(checked) => 
+                                          updateWorkHistoryEntry(index, 'current', checked === true)
+                                        }
+                                      />
+                                      <label htmlFor={`current-${index}`} className="text-sm cursor-pointer">
+                                        Current
+                                      </label>
+                                    </div>
+                                  </div>
+                                  <Input
+                                    type="text"
+                                    value={work.endDate}
+                                    onChange={(e) => updateWorkHistoryEntry(index, 'endDate', e.target.value)}
+                                    placeholder="e.g., May 2022"
+                                    disabled={work.current}
+                                  />
+                                </div>
+                                
+                                <div className="sm:col-span-2 space-y-2">
+                                  <Label>Description</Label>
+                                  <Textarea
+                                    rows={3}
+                                    value={work.description}
+                                    onChange={(e) => updateWorkHistoryEntry(index, 'description', e.target.value)}
+                                    placeholder="Describe your responsibilities and achievements"
+                                  />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="ml-3 text-sm">
-                    <label htmlFor="visibility" className="font-medium text-gray-700">
-                      Make my profile visible in search results
-                    </label>
-                    <p className="text-gray-500">
-                      When enabled, students and parents can find and contact you
-                    </p>
+                </TabsContent>
+                
+                <TabsContent value="teaching">
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Location</Label>
+                        <Input
+                          id="location"
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          placeholder="City, State"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="areasServed">Areas Served</Label>
+                        <Input
+                          id="areasServed"
+                          type="text"
+                          value={areasServed}
+                          onChange={(e) => setAreasServed(e.target.value)}
+                          placeholder="Neighborhoods, districts, etc."
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Label>Teaching Mode</Label>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="online"
+                            checked={teachingMode.includes("Online")}
+                            onCheckedChange={(checked: boolean) => {
+                              handleTeachingModeChange("Online");
+                            }}
+                          />
+                          <label htmlFor="online" className="text-sm cursor-pointer">
+                            Online
+                          </label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="offline"
+                            checked={teachingMode.includes("Offline")}
+                            onCheckedChange={(checked: boolean) => {
+                              handleTeachingModeChange("Offline");
+                            }}
+                          />
+                          <label htmlFor="offline" className="text-sm cursor-pointer">
+                            Offline
+                          </label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="hybrid"
+                            checked={teachingMode.includes("Hybrid")}
+                            onCheckedChange={(checked: boolean) => {
+                              handleTeachingModeChange("Hybrid");
+                            }}
+                          />
+                          <label htmlFor="hybrid" className="text-sm cursor-pointer">
+                            Hybrid
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Label>Fee Range (₹ per hour)</Label>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="minFee" className="text-xs">Minimum Fee</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                            <Input
+                              id="minFee"
+                              type="number"
+                              min="0"
+                              value={feeRange.min}
+                              onChange={(e) => setFeeRange({ ...feeRange, min: e.target.value })}
+                              className="pl-7"
+                              placeholder="Min"
+                              required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">/hr</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="maxFee" className="text-xs">Maximum Fee</Label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                            <Input
+                              id="maxFee"
+                              type="number"
+                              min="0"
+                              value={feeRange.max}
+                              onChange={(e) => setFeeRange({ ...feeRange, max: e.target.value })}
+                              className="pl-7"
+                              placeholder="Max"
+                              required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">/hr</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Error/Success messages */}
-            {error && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <XCircle className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {successMessage && (
-              <div className="rounded-md bg-green-50 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <CheckCircle className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">{successMessage}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Form Actions */}
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </div>
+                </TabsContent>
+              </form>
+            </Tabs>
+          </CardContent>
+          <CardFooter className="border-t pt-6 flex justify-between">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                  Saving
+                </>
+              ) : "Save Changes"}
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     </DashboardShell>
   );

@@ -19,14 +19,37 @@ import {
   addDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Card, CardContent } from "@/app/components/shared/card";
-import { Check, X, Phone, AlertCircle } from "lucide-react";
+import { Check, X, Phone, AlertCircle, User } from "lucide-react";
 import { createPhoneRequestNotification } from "@/lib/notification-service";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
+import { Button } from "@/app/components/ui/button";
+import { Badge } from "@/app/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { Separator } from "@/app/components/ui/separator";
+import { ScrollArea } from "@/app/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/app/components/ui/alert-dialog";
 
 // Add a helper function for cache-busting after the import statements
 // but before any component definitions
 function getCacheBustedUrl(url: string | null | undefined): string {
   if (!url) return '';
+  
+  // Skip cache busting for Google Storage URLs as it can cause issues
+  if (url.includes('firebasestorage.googleapis.com')) {
+    console.log('Firebase Storage URL detected, returning without cache busting:', url);
+    return url;
+  }
   
   // Force a new URL by adding both timestamp and a random number
   const separator = url.includes('?') ? '&' : '?';
@@ -46,6 +69,18 @@ function PhoneRequestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { user, userProfile } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<string>("all");
+  
+  // Debug avatar URLs when requests change
+  useEffect(() => {
+    if (requests.length > 0) {
+      console.log('===== Avatar URL Debugging =====');
+      requests.forEach(request => {
+        console.log(`User: ${request.otherUser?.id}, Type: ${request.otherUser?.type}, Name: ${request.otherUser?.name}, Avatar URL: ${request.otherUser?.avatarUrl}`);
+      });
+      console.log('================================');
+    }
+  }, [requests]);
   
   useEffect(() => {
     let isMounted = true;
@@ -55,6 +90,8 @@ function PhoneRequestsPage() {
         if (isMounted) setIsLoading(false);
         return;
       }
+      
+      console.log("Current user profile:", userProfile);
       
       try {
         let requestsQuery;
@@ -78,29 +115,80 @@ function PhoneRequestsPage() {
         const requestsSnapshot = await getDocs(requestsQuery);
         const requestsData: any[] = [];
         
+        // Debug for each request data
+        console.log(`Found ${requestsSnapshot.docs.length} phone requests`);
+        
         // Process each request
         for (const reqDoc of requestsSnapshot.docs) {
-          const reqData = reqDoc.data();
-          
-          if (!reqData) continue;
-          
-          // Get the other user's profile
-          const otherUserId = userProfile.userType === "teacher" ? reqData.requesterId : reqData.teacherId;
-          
-          if (!otherUserId) continue;
-          
-          const otherUserType = userProfile.userType === "teacher" ? reqData.requesterType : "teacher";
-          
-          if (!otherUserType) continue;
-          
-          const otherUserProfile = await getOtherUserProfile(otherUserId, otherUserType);
-          
-          // Add to requests array
-          requestsData.push({
-            id: reqDoc.id,
-            ...reqData,
-            otherUser: otherUserProfile
-          });
+          try {
+            const reqData = reqDoc.data();
+            
+            if (!reqData) {
+              console.log(`Request ${reqDoc.id} has no data, skipping`);
+              continue;
+            }
+            
+            console.log("Phone request data:", reqData);
+            
+            // Get the other user's profile
+            const otherUserId = userProfile.userType === "teacher" ? reqData.requesterId : reqData.teacherId;
+            
+            if (!otherUserId) {
+              console.log(`Request ${reqDoc.id} missing user ID, skipping`);
+              continue;
+            }
+            
+            // Get the correct user type from the request data
+            let otherUserType = "";
+            if (userProfile.userType === "teacher") {
+              otherUserType = reqData.requesterType || "student"; // Use requesterType from request data
+            } else {
+              otherUserType = "teacher"; // The other user must be a teacher
+            }
+            
+            if (!otherUserType) {
+              console.log(`Request ${reqDoc.id} missing user type, skipping`);
+              continue;
+            }
+            
+            try {
+              // Debug the collections for this user
+              await debugUserDocuments(otherUserId);
+              
+              // Get user profile with error handling
+              const otherUserProfile = await getOtherUserProfile(otherUserId, otherUserType);
+              
+              // Add to requests array with debug info
+              const requestWithDebugInfo = {
+                id: reqDoc.id,
+                ...reqData,
+                otherUser: otherUserProfile,
+                debugInfo: {
+                  currentUserType: userProfile.userType,
+                  otherUserType: otherUserType,
+                  otherUserId: otherUserId
+                }
+              };
+              
+              console.log("Adding phone request with debug info:", requestWithDebugInfo);
+              requestsData.push(requestWithDebugInfo);
+            } catch (profileError) {
+              console.error(`Error processing user profile for request ${reqDoc.id}:`, profileError);
+              // Still add the request with minimal profile data
+              requestsData.push({
+                id: reqDoc.id,
+                ...reqData,
+                otherUser: { 
+                  id: otherUserId, 
+                  type: otherUserType, 
+                  name: "Unknown User" 
+                }
+              });
+            }
+          } catch (requestError) {
+            console.error(`Error processing request document:`, requestError);
+            // Continue with next request
+          }
         }
         
         if (isMounted) {
@@ -126,20 +214,89 @@ function PhoneRequestsPage() {
     }
     
     try {
-      // Get profile based on user type
-      const profileDoc = await getDoc(doc(db, userType + "s", userId));
+      // First try to get the user document directly to see what collections exist
+      let userData: any = null;
+      let avatar = null;
+      let userName = "Unknown User";
       
-      if (profileDoc.exists()) {
+      try {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+          console.log(`User document exists in 'users' collection:`, userData);
+          
+          // Try to get avatar and name from user data
+          avatar = userData.photoURL || userData.avatarUrl || null;
+          userName = userData.displayName || userData.name || userData.email || null;
+        } else {
+          console.log(`No user document found in 'users' collection for ${userId}`);
+        }
+      } catch (userErr) {
+        console.log(`Permission error accessing users collection:`, userErr);
+      }
+      
+      // Get profile based on user type
+      const collectionName = userType + "s"; // e.g., "students", "parents", "teachers"
+      console.log(`Fetching profile from collection: ${collectionName} for user ID: ${userId}`);
+      
+      try {
+        const profileDoc = await getDoc(doc(db, collectionName, userId));
+        
+        if (profileDoc.exists()) {
+          const data = profileDoc.data();
+          console.log(`Profile data found in ${collectionName}:`, data);
+          
+          // Update avatar if found in profile
+          if (data.avatarUrl) {
+            avatar = data.avatarUrl;
+            console.log(`Found avatar URL in profile: ${avatar}`);
+          }
+          
+          // Try different possible name fields
+          userName = data.name || 
+                   data.fullName || 
+                   data.displayName || 
+                   data.userName || 
+                   (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : null) ||
+                   userName ||
+                   "Unknown User";
+                     
+          console.log(`Name determined for user ${userId}:`, userName);
+          
+          // Return profile data
+          return {
+            id: userId,
+            type: userType,
+            name: userName,
+            avatarUrl: avatar,
+            ...data
+          };
+        }
+      } catch (profileErr) {
+        console.log(`Permission error accessing ${collectionName} collection:`, profileErr);
+      }
+      
+      // If we have userData but no profile, use that
+      if (userData) {
+        console.log(`Using data from users collection for ${userId}`);
         return {
           id: userId,
           type: userType,
-          ...profileDoc.data()
+          name: userName,
+          avatarUrl: avatar,
+          ...userData
         };
       }
       
-      return { id: userId, type: userType, name: "Unknown User" };
+      // If we couldn't find any data, just return the basic info
+      return { 
+        id: userId, 
+        type: userType, 
+        name: userName, 
+        avatarUrl: null 
+      };
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error(`Error fetching user profile:`, error);
       return { id: userId, type: userType, name: "Unknown User" };
     }
   };
@@ -248,7 +405,7 @@ function PhoneRequestsPage() {
       console.log("Local state updated");
       
     } catch (error) {
-      console.error("Error approving request:", error);
+      console.error("Error approving phone request:", error);
     }
   };
   
@@ -256,6 +413,7 @@ function PhoneRequestsPage() {
     if (!user || !requestId) return;
     
     try {
+      // Update the request with rejected status
       await updateDoc(doc(db, "phoneNumberRequests", requestId), {
         status: "rejected",
         respondedAt: serverTimestamp()
@@ -290,8 +448,6 @@ function PhoneRequestsPage() {
         
         // If conversation found, add a system message
         if (conversationId) {
-          console.log(`Adding system message to conversation ${conversationId}`);
-          
           // Add the system message
           await addDoc(
             collection(db, "conversations", conversationId, "messages"),
@@ -310,10 +466,6 @@ function PhoneRequestsPage() {
             lastMessage: "Phone number request rejected",
             lastMessageAt: serverTimestamp()
           });
-          
-          console.log("System message added successfully");
-        } else {
-          console.log("No conversation found between teacher and requester");
         }
       } catch (systemMessageError) {
         console.error("Error adding system message:", systemMessageError);
@@ -324,144 +476,253 @@ function PhoneRequestsPage() {
       setRequests(requests.map(req => 
         req.id === requestId ? { ...req, status: "rejected" } : req
       ));
+      
     } catch (error) {
-      console.error("Error rejecting request:", error);
+      console.error("Error rejecting phone request:", error);
     }
   };
   
   const getDisplayName = (otherUser: any) => {
-    return otherUser?.name || otherUser?.fullName || "Unknown User";
+    if (!otherUser) return "Unknown User";
+    
+    // Try different fields that might contain the name
+    return otherUser.name || 
+           otherUser.fullName || 
+           otherUser.displayName || 
+           otherUser.email || 
+           "Unknown User";
   };
   
   const getInitials = (name: string) => {
-    if (!name) return "?";
+    if (!name || name === "Unknown User") return "?";
     
     return name
       .split(" ")
-      .map((n) => n[0])
+      .map(n => n[0])
       .join("")
-      .toUpperCase();
+      .toUpperCase().substring(0, 2);
+  };
+  
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">Pending</Badge>;
+      case "approved":
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Approved</Badge>;
+      case "rejected":
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">Rejected</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+  
+  const filteredRequests = activeTab === "all" 
+    ? requests 
+    : requests.filter(req => req.status === activeTab);
+  
+  // Count requests by status
+  const pendingRequests = requests.filter(req => req.status === "pending").length;
+  const approvedRequests = requests.filter(req => req.status === "approved").length;
+  
+  // Add a debug function to check all possible collections for a user
+  const debugUserDocuments = async (userId: string) => {
+    try {
+      const collections = ['users', 'teachers', 'students', 'parents'];
+      
+      console.log(`----- Checking documents for user ID: ${userId} -----`);
+      
+      for (const collectionName of collections) {
+        try {
+          const docRef = doc(db, collectionName, userId);
+          const docSnapshot = await getDoc(docRef);
+          
+          if (docSnapshot.exists()) {
+            console.log(`FOUND: Document exists in '${collectionName}' collection`);
+            console.log('Document data:', docSnapshot.data());
+          } else {
+            console.log(`NOT FOUND: No document in '${collectionName}' collection`);
+          }
+        } catch (error) {
+          console.error(`Error accessing ${collectionName} collection:`, error);
+        }
+      }
+      
+      console.log(`----- End of document check for ${userId} -----`);
+    } catch (error) {
+      console.error('Error checking user documents:', error);
+    }
   };
   
   return (
     <DashboardShell>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Phone Number Requests</h1>
-        </div>
+      <div className="p-6 space-y-6">
+        <h1 className="text-2xl font-bold">Phone Number Requests</h1>
         
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-3 text-gray-600">Loading your requests...</p>
-          </div>
-        ) : requests.length > 0 ? (
-          <div className="space-y-4">
-            {requests.map((request) => (
-              <Card key={request.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4">
-                    <div className="flex items-center gap-3 mb-3 sm:mb-0">
-                      <div className="relative h-12 w-12 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center text-white font-bold">
-                        {request.otherUser.avatarUrl ? (
-                          <Image
-                            src={getCacheBustedUrl(request.otherUser.avatarUrl)}
-                            alt={getDisplayName(request.otherUser)}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          getInitials(getDisplayName(request.otherUser))
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{getDisplayName(request.otherUser)}</h3>
-                        <p className="text-sm text-gray-500 capitalize">{request.otherUser.type}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                      {/* For teachers: approval controls */}
-                      {userProfile?.userType === "teacher" && request.status === "pending" && (
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => handleApproveRequest(request.id, request.requesterId)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-md hover:bg-green-200"
-                          >
-                            <Check className="h-4 w-4" />
-                            <span>Approve</span>
-                          </button>
-                          <button 
-                            onClick={() => handleRejectRequest(request.id, request.requesterId)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-                          >
-                            <X className="h-4 w-4" />
-                            <span>Reject</span>
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Status badges */}
-                      {request.status === "approved" && (
-                        <div className="px-4 py-2 bg-green-50 rounded-md text-green-700 flex items-center gap-2">
-                          <Check className="h-4 w-4" />
-                          <span>Approved</span>
-                        </div>
-                      )}
-                      {request.status === "rejected" && (
-                        <div className="px-4 py-2 bg-red-50 rounded-md text-red-700 flex items-center gap-2">
-                          <X className="h-4 w-4" />
-                          <span>Rejected</span>
-                        </div>
-                      )}
-                      {request.status === "pending" && userProfile?.userType !== "teacher" && (
-                        <div className="px-4 py-2 bg-yellow-50 rounded-md text-yellow-700 flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4" />
-                          <span>Pending</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {request.status === "approved" && userProfile?.userType !== "teacher" && (
-                      <div className="mt-4 p-3 border border-green-100 bg-green-50 rounded-md">
-                        <div className="flex items-center gap-2 text-green-800 font-medium mb-1">
-                          <Phone className="h-4 w-4" />
-                          <span>Contact Information</span>
-                        </div>
-                        {request.phoneNumber && request.phoneNumber !== "Contact teacher for details" ? (
-                          <p className="text-green-900 font-medium">{request.phoneNumber}</p>
-                        ) : (
-                          <div className="text-amber-600">
-                            <p>The teacher approved your request but no phone number is available.</p>
-                            <p className="text-sm mt-1">Please contact them through messages instead.</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardDescription>
+              {userProfile?.userType === "teacher"
+                ? "Review and respond to students who want to contact you directly"
+                : "Track the status of your phone number requests to teachers"}
+            </CardDescription>
+          </CardHeader>
+          
+          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+            <div className="px-6">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="all">
+                  All
+                  {requests.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {requests.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="pending">
+                  Pending
+                  {pendingRequests > 0 && (
+                    <Badge variant="secondary" className="ml-2 bg-amber-100 text-amber-800">
+                      {pendingRequests}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="approved">
+                  Approved
+                  {approvedRequests > 0 && (
+                    <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800">
+                      {approvedRequests}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <TabsContent value={activeTab} className="pt-3">
+              {isLoading ? (
+                <CardContent className="flex justify-center items-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-2 text-sm text-muted-foreground">Loading requests...</p>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <Phone className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Phone Requests</h3>
-            <p className="text-gray-500 max-w-md mx-auto">
-              {userProfile?.userType === "teacher" 
-                ? "You don't have any phone number requests from students or parents yet."
-                : "You haven't requested any teacher phone numbers yet."}
-            </p>
-            {userProfile?.userType !== "teacher" && (
-              <button
-                onClick={() => router.push("/")}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Browse Teachers
-              </button>
-            )}
-          </div>
-        )}
+              ) : filteredRequests.length === 0 ? (
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Phone className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                  <h3 className="text-lg font-medium">No phone requests found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                    {userProfile?.userType === "teacher"
+                      ? "When students or parents request your phone number, they will appear here."
+                      : "When you request a teacher's phone number, it will appear here."}
+                  </p>
+                </CardContent>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  {filteredRequests.map((request, index) => (
+                    <div key={request.id}>
+                      <CardContent className="p-0">
+                        <div className="p-4">
+                          <div className="flex items-start gap-4">
+                            <Avatar className="h-10 w-10">
+                              {request.otherUser?.avatarUrl && (
+                                <AvatarImage 
+                                  src={getCacheBustedUrl(request.otherUser.avatarUrl)} 
+                                  alt={getDisplayName(request.otherUser)}
+                                  onError={(e) => {
+                                    console.log("Avatar image error:", e);
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              )}
+                              <AvatarFallback>{getInitials(getDisplayName(request.otherUser))}</AvatarFallback>
+                            </Avatar>
+                            
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="font-medium">{getDisplayName(request.otherUser)}</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    {request.otherUser?.type.charAt(0).toUpperCase() + request.otherUser?.type.slice(1)}
+                                  </p>
+                                </div>
+                                <div className="flex items-center">
+                                  {getStatusBadge(request.status)}
+                                </div>
+                              </div>
+                              
+                              {request.status === "approved" && request.phoneNumber && (
+                                <div className="mt-2 p-3 bg-muted rounded-md">
+                                  <div className="flex items-center">
+                                    <Phone className="h-4 w-4 mr-2 text-primary" />
+                                    <span className="font-medium">{request.phoneNumber}</span>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {userProfile?.userType === "teacher" && request.status === "pending" && (
+                                <div className="mt-3 flex space-x-2">
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="outline" className="text-red-500 border-red-200 hover:border-red-300 hover:bg-red-50">
+                                        <X className="h-4 w-4 mr-1" /> Reject
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Reject Phone Request</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to reject this phone number request? The student will be notified about your decision.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          className="bg-red-500 hover:bg-red-600"
+                                          onClick={() => handleRejectRequest(request.id, request.requesterId)}
+                                        >
+                                          Reject
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                  
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="outline" className="text-green-500 border-green-200 hover:border-green-300 hover:bg-green-50">
+                                        <Check className="h-4 w-4 mr-1" /> Approve
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Approve Phone Request</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          By approving this request, your phone number will be shared with the student. They will be notified about your decision.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          className="bg-green-500 hover:bg-green-600"
+                                          onClick={() => handleApproveRequest(request.id, request.requesterId)}
+                                        >
+                                          Approve
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                      {index < filteredRequests.length - 1 && <Separator />}
+                    </div>
+                  ))}
+                </ScrollArea>
+              )}
+            </TabsContent>
+          </Tabs>
+        </Card>
       </div>
     </DashboardShell>
   );
@@ -469,5 +730,5 @@ function PhoneRequestsPage() {
 
 export default withAuth(PhoneRequestsPage, {
   allowedUserTypes: ["teacher", "student", "parent"],
-  redirectTo: "/login",
+  redirectTo: "/login"
 }); 

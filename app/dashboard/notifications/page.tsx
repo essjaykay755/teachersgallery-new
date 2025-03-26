@@ -7,6 +7,11 @@ import { Bell, CheckCircle, MessageSquare, Phone, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Notification } from '@/lib/notifications-context';
 import { DashboardShell } from '@/app/components/layout/dashboard-shell';
+import { Button } from '@/app/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/app/components/ui/card';
+import { ScrollArea } from '@/app/components/ui/scroll-area';
+import { Separator } from '@/app/components/ui/separator';
+import { Badge } from '@/app/components/ui/badge';
 
 // Main component with error handling
 export default function NotificationsPage() {
@@ -43,15 +48,18 @@ function SafeNotificationsContent() {
   // If there was an error with the hook, render error UI
   if (error) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-2xl font-bold text-red-500">Error</h1>
-        <p className="mt-2">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
-        >
-          Refresh Page
-        </button>
+      <div className="p-8">
+        <Card className="border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-500">Error</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Refresh Page
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -128,63 +136,74 @@ function NotificationsContent({
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Notifications</h1>
         {unreadCount > 0 && (
-          <button
-            onClick={() => markAllAsRead()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
-          >
+          <Button onClick={() => markAllAsRead()} variant="outline">
             Mark all as read
-          </button>
+          </Button>
         )}
       </div>
 
-      {!notifications || notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 bg-white rounded-lg shadow">
-          <Bell className="h-16 w-16 text-gray-300 mb-4" />
-          <h2 className="text-xl font-medium text-gray-600">No notifications yet</h2>
-          <p className="text-gray-500 mt-1">You don't have any notifications at the moment.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {notifications.map((notification) => (
-            <div 
-              key={notification.id}
-              onClick={() => handleNotificationClick(notification)}
-              className={`
-                p-4 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer transition-colors
-                ${!notification.isRead ? 'bg-blue-50/50' : ''}
-              `}
-            >
-              <div className="flex items-start">
-                <div className="flex-shrink-0 mr-4 mt-1">
-                  {getNotificationIcon(notification.type)}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between">
-                    <h3 className={`font-medium ${!notification.isRead ? 'text-blue-800' : 'text-gray-900'}`}>
-                      {notification.title}
-                    </h3>
-                    <span className="text-xs text-gray-500 ml-2">
-                      {formatTime(notification.createdAt)}
-                    </span>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardDescription>
+            {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}, {unreadCount} unread
+          </CardDescription>
+        </CardHeader>
+        {!notifications || notifications.length === 0 ? (
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <Bell className="h-12 w-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-medium text-muted-foreground">No notifications yet</h2>
+            <p className="text-sm text-muted-foreground mt-1">You don't have any notifications at the moment.</p>
+          </CardContent>
+        ) : (
+          <ScrollArea className="h-[500px]">
+            <CardContent className="p-0">
+              {notifications.map((notification, index) => (
+                <div key={notification.id}>
+                  <div 
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`
+                      p-4 flex items-start hover:bg-muted/50 cursor-pointer transition-colors
+                      ${!notification.isRead ? 'bg-muted/30' : ''}
+                    `}
+                  >
+                    <div className="flex-shrink-0 mr-4 mt-1">
+                      {getNotificationIcon(notification.type)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <h3 className={`font-medium ${!notification.isRead ? 'text-primary' : ''}`}>
+                            {notification.title}
+                          </h3>
+                          {!notification.isRead && (
+                            <Badge variant="outline" className="bg-primary/10 text-primary text-xs">New</Badge>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {formatTime(notification.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {notification.body}
+                      </p>
+                    </div>
+                    {notification.isRead && (
+                      <div className="ml-2 flex-shrink-0">
+                        <CheckCircle className="h-4 w-4 text-muted-foreground/70" />
+                      </div>
+                    )}
                   </div>
-                  <p className="text-gray-600 mt-1">
-                    {notification.body}
-                  </p>
+                  {index < notifications.length - 1 && <Separator />}
                 </div>
-                {notification.isRead && (
-                  <div className="ml-2 flex-shrink-0">
-                    <CheckCircle className="h-4 w-4 text-gray-400" />
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              ))}
+            </CardContent>
+          </ScrollArea>
+        )}
+      </Card>
     </div>
   );
 } 

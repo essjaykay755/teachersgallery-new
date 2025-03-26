@@ -158,12 +158,17 @@ export async function createPhoneRequestNotification(
   status: string
 ) {
   try {
+    console.log(`Creating phone request notification: recipientId=${recipientId}, requesterId=${requesterId}, requestId=${requestId}, status=${status}`);
+    
     // Get requester info
     const requesterDoc = await getDoc(doc(db, "users", requesterId));
     let requesterType = "";
     
     if (requesterDoc.exists()) {
       requesterType = requesterDoc.data().userType || "";
+      console.log(`Found requester type from users collection: ${requesterType}`);
+    } else {
+      console.log(`Requester document not found in users collection`);
     }
     
     // If requesterType is empty, try to guess from the status context
@@ -171,11 +176,13 @@ export async function createPhoneRequestNotification(
       // If status is 'pending', then the requester is likely a student or parent
       // If status is 'approved' or 'rejected', the requester is likely receiving notification from a teacher
       requesterType = status === 'pending' ? 'student' : 'teacher';
+      console.log(`Guessed requester type based on status: ${requesterType}`);
     }
     
     // Normalize type to ensure collection name is correct
     const userCollection = requesterType === 'teacher' ? 'teachers' : 
                           requesterType === 'parent' ? 'parents' : 'students';
+    console.log(`Using collection ${userCollection} to fetch requester profile`);
     
     // Get requester profile from the direct collection
     let requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
@@ -185,7 +192,9 @@ export async function createPhoneRequestNotification(
       requesterName = requesterProfileDoc.data().name || 
                      requesterProfileDoc.data().fullName || 
                      "Someone";
+      console.log(`Found requester name: ${requesterName}`);
     } else {
+      console.log(`Requester profile not found in ${userCollection} collection, trying fallback...`);
       // If no profile found in the direct collection, try looking in general profiles collection
       try {
         const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
@@ -193,6 +202,9 @@ export async function createPhoneRequestNotification(
           requesterName = fallbackProfileDoc.data().name || 
                          fallbackProfileDoc.data().fullName || 
                          "Someone";
+          console.log(`Found requester name from fallback profile: ${requesterName}`);
+        } else {
+          console.log(`Fallback profile not found either`);
         }
       } catch (profileError) {
         console.error("Error accessing fallback profile:", profileError);
@@ -214,6 +226,8 @@ export async function createPhoneRequestNotification(
       body = `Your request for phone number has been rejected`;
     }
     
+    console.log(`Creating notification with title: "${title}" and body: "${body}"`);
+    
     // Create the notification
     if (title && body) {
       await createNotification(
@@ -228,6 +242,8 @@ export async function createPhoneRequestNotification(
       );
       
       console.log(`Successfully created notification for ${recipientId} about phone request ${requestId}`);
+    } else {
+      console.warn(`No notification created - empty title or body`);
     }
   } catch (error) {
     console.error("Error creating phone request notification:", error);

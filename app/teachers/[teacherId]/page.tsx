@@ -386,6 +386,7 @@ export default function TeacherProfile() {
       const requestRef = await addDoc(collection(db, 'phoneNumberRequests'), {
         teacherId,
         requesterId: user.uid,
+        requesterType: userProfile?.userType || 'student',
         status: 'pending',
         timestamp: serverTimestamp()
       });
