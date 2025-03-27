@@ -13,6 +13,11 @@ import { doc, getDoc, setDoc, collection } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { useRouter } from "next/navigation";
 import Cookies from 'js-cookie';
+import { 
+  updateOnlineStatus, 
+  setupPresenceTracking, 
+  startPresenceKeepAlive 
+} from "./presence-service";
 
 // Define user types
 export type UserType = "teacher" | "student" | "parent";
@@ -96,6 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Handle logout
   const logout = async () => {
+    if (user) {
+      // Update user status to offline before signing out
+      await updateOnlineStatus(user.uid, false);
+    }
+    
     await signOut(auth);
     Cookies.remove('session');
     document.cookie = "x-user-type=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -150,6 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Watch for auth state changes
   useEffect(() => {
     let mounted = true;
+    let presenceCleanup: (() => void) | null = null;
+    let keepAliveCleanup: (() => void) | null = null;
     
     try {
       const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -158,6 +170,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(user);
         
         if (user) {
+          // Set up presence tracking
+          presenceCleanup = setupPresenceTracking(user.uid);
+          keepAliveCleanup = startPresenceKeepAlive(user.uid);
+          
           // Set session cookie
           Cookies.set('session', 'true', { expires: 7 });
           
@@ -229,6 +245,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return () => {
         mounted = false;
         unsubscribe();
+        
+        // Clean up presence tracking
+        if (presenceCleanup) presenceCleanup();
+        if (keepAliveCleanup) keepAliveCleanup();
+        
+        // Update status to offline when unmounting
+        if (user) {
+          updateOnlineStatus(user.uid, false);
+        }
       };
     } catch (error) {
       console.error("Error setting up auth state listener:", error);

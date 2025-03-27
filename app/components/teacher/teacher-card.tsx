@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin, Star, Check, Clock, BadgeCheck } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
+import StatusAvatar from "@/app/components/shared/status-avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/app/components/ui/card";
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -175,10 +175,14 @@ export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
         )}
         <CardHeader className="pb-0 pt-4 px-4">
           <div className="flex items-start space-x-3.5">
-            <Avatar className="h-16 w-16 border-2 border-gray-100 shadow-sm">
-              <AvatarImage src={avatarUrl} alt={name} className="object-cover" />
-              <AvatarFallback className="text-base bg-blue-500 text-white">{initials}</AvatarFallback>
-            </Avatar>
+            <StatusAvatar 
+              src={avatarUrl} 
+              alt={name} 
+              fallback={initials}
+              userId={id}
+              size="xl"
+              className="border-2 border-gray-100 shadow-sm"
+            />
             <div className="flex-1 -mt-1">
               <div className="flex items-center gap-1.5">
                 <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{name}</h3>

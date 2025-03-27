@@ -34,6 +34,7 @@ import { Button } from "@/app/components/ui/button";
 import { ScrollArea } from "@/app/components/ui/scroll-area";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import StatusAvatar from "@/app/components/shared/status-avatar";
 
 function MessagesPage() {
   const [conversations, setConversations] = useState<any[]>([]);
@@ -240,15 +241,13 @@ function MessagesPage() {
                         ${conversation.unread ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}
                       `}
                     >
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage 
-                          src={getCacheBustedUrl(conversation.otherUser?.avatarUrl)} 
-                          alt={getDisplayName(conversation.otherUser)} 
-                        />
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          {getInitials(getDisplayName(conversation.otherUser))}
-                        </AvatarFallback>
-                      </Avatar>
+                      <StatusAvatar
+                        src={getCacheBustedUrl(conversation.otherUser?.avatarUrl)}
+                        alt={getDisplayName(conversation.otherUser)}
+                        fallback={getInitials(getDisplayName(conversation.otherUser))}
+                        userId={conversation.otherUser?.id}
+                        size="lg"
+                      />
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -286,15 +285,13 @@ function MessagesPage() {
                           onClick={() => handleOpenConversation(conversation.id)}
                           className="p-4 border-b last:border-0 flex items-center gap-4 hover:bg-muted/50 transition-colors cursor-pointer bg-blue-50/50 dark:bg-blue-950/20"
                         >
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage 
-                              src={getCacheBustedUrl(conversation.otherUser?.avatarUrl)} 
-                              alt={getDisplayName(conversation.otherUser)} 
-                            />
-                            <AvatarFallback className="bg-primary text-primary-foreground">
-                              {getInitials(getDisplayName(conversation.otherUser))}
-                            </AvatarFallback>
-                          </Avatar>
+                          <StatusAvatar
+                            src={getCacheBustedUrl(conversation.otherUser?.avatarUrl)}
+                            alt={getDisplayName(conversation.otherUser)}
+                            fallback={getInitials(getDisplayName(conversation.otherUser))}
+                            userId={conversation.otherUser?.id}
+                            size="lg"
+                          />
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">

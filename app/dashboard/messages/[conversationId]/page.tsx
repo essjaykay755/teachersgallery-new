@@ -51,6 +51,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import StatusAvatar from "@/app/components/shared/status-avatar";
 
 interface Message {
   id: string;
@@ -677,17 +678,13 @@ function ConversationPage() {
               </>
             ) : (
               <>
-                <Avatar className="h-10 w-10">
-                  {otherUser?.avatarUrl ? (
-                    <AvatarImage 
-                      src={getCacheBustedUrl(otherUser.avatarUrl)} 
-                      alt={otherUser?.name || "User"} 
-                    />
-                  ) : null}
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {otherUser ? getInitials(otherUser.name || "User") : "?"}
-                  </AvatarFallback>
-                </Avatar>
+                <StatusAvatar 
+                  src={getCacheBustedUrl(otherUser.avatarUrl)} 
+                  alt={otherUser?.name || "User"} 
+                  fallback={getInitials(otherUser.name || "User")}
+                  userId={otherUser.id}
+                  size="md"
+                />
                 
                 <div>
                   <p className="font-medium">
