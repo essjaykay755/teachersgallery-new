@@ -5,32 +5,14 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/app/components/ui/c
 import { Badge } from "@/app/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
+import { Teacher } from "@/lib/teacher-service";
 
 interface TeacherCardProps {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-  subject?: string;
-  subjects?: string[];
-  location?: string;
-  feesPerHour?: number;
-  feeRange?: { 
-    min: number; 
-    max: number 
-  };
-  experience?: number;
-  teachingMode?: string;
-  educationLevels?: string[];
-  rating?: number;
-  reviews?: number;
-  isVerified?: boolean;
-  isFeatured?: boolean;
-  isVisible?: boolean;
-  featuredExpiry?: Date;
+  teacher: Teacher;
   className?: string;
 }
 
-export function TeacherCard(props: TeacherCardProps) {
+export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
   // Use defensive destructuring to ensure every prop has a default value
   const {
     id = "unknown",
@@ -49,8 +31,7 @@ export function TeacherCard(props: TeacherCardProps) {
     isVerified = false,
     isFeatured = false,
     isVisible = true,
-    className = "",
-  } = props;
+  } = teacher;
 
   console.log(`TeacherCard ${id} (${name}): experience value:`, experience, typeof experience);
 

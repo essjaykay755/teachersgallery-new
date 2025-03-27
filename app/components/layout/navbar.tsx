@@ -47,6 +47,7 @@ export function Navbar({ className }: NavbarProps) {
   const [searchResults, setSearchResults] = useState<TeacherSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [indexError, setIndexError] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const { user, userProfile, logout, isLoading } = useAuth();
   const router = useRouter();
@@ -81,7 +82,14 @@ export function Navbar({ className }: NavbarProps) {
   // Effect to handle clicks outside search dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      // Get the clicked element
+      const clickedElement = event.target as HTMLElement;
+      
+      // Check if click is on a search result link or inside one
+      const isSearchResultClick = clickedElement.closest('.search-result-item');
+      
+      // Only close dropdown if it's not a click on a search result
+      if (searchRef.current && !searchRef.current.contains(event.target as Node) && !isSearchResultClick) {
         setShowSearchResults(false);
       }
     };
@@ -126,13 +134,14 @@ export function Navbar({ className }: NavbarProps) {
   
   // Effect to handle teacher search
   useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    
     const searchTimer = setTimeout(() => {
-      if (searchQuery.trim().length >= 2) {
-        searchTeachers(searchQuery);
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
+      searchTeachers(searchQuery);
     }, 300);
     
     return () => clearTimeout(searchTimer);
@@ -142,32 +151,45 @@ export function Navbar({ className }: NavbarProps) {
     if (searchText.length < 2) return;
     
     setIsSearching(true);
+    setIndexError(false);
+    
     try {
       const teacherRef = collection(db, "teachers");
       const results: TeacherSearchResult[] = [];
       
-      // Search by name (case-insensitive using multiple queries)
-      // First, try an exact match query
-      const searchTextLower = searchText.toLowerCase();
-      const searchTextUpper = searchText.toUpperCase();
-      const firstChar = searchText.charAt(0);
-      const firstCharLower = firstChar.toLowerCase();
-      const firstCharUpper = firstChar.toUpperCase();
-      
-      // Try lowercase version
-      const lowerNameQuery = query(
+      // Use the simplest possible query to avoid index issues
+      const simpleQuery = query(
         teacherRef,
-        where("name", ">=", firstCharLower + searchTextLower.substring(1)),
-        where("name", "<=", firstCharLower + searchTextLower.substring(1) + '\uf8ff'),
-        limit(5)
+        limit(20) // Get more results since we'll filter client-side
       );
       
-      const lowerSnapshots = await getDocs(lowerNameQuery);
+      const snapshots = await getDocs(simpleQuery);
       
-      lowerSnapshots.forEach((doc) => {
+      // Client-side filtering
+      snapshots.forEach((doc) => {
         const data = doc.data();
-        const nameMatch = (data.name || data.fullName || "").toLowerCase().includes(searchTextLower);
-        if (nameMatch) {
+        
+        // Only show teachers with visible profiles (default to true if not set)
+        const isVisible = data.isVisible !== false;
+        if (!isVisible) return;
+        
+        const name = (data.name || data.fullName || "").toLowerCase();
+        const searchTextLower = searchText.toLowerCase();
+        
+        // Check name match
+        const nameMatch = name.includes(searchTextLower);
+        
+        // Check subject match
+        const subjectMatch = Array.isArray(data.subjects) && 
+          data.subjects.some((subject: string) => 
+            subject.toLowerCase().includes(searchTextLower)
+          );
+        
+        // Check location match
+        const locationMatch = data.location && 
+          data.location.toLowerCase().includes(searchTextLower);
+        
+        if (nameMatch || subjectMatch || locationMatch) {
           results.push({
             id: doc.id,
             name: data.name || data.fullName || "Unknown Teacher",
@@ -178,99 +200,32 @@ export function Navbar({ className }: NavbarProps) {
         }
       });
       
-      // If we don't have enough results, try uppercase version
-      if (results.length < 5) {
-        const upperNameQuery = query(
-          teacherRef,
-          where("name", ">=", firstCharUpper + searchTextLower.substring(1)),
-          where("name", "<=", firstCharUpper + searchTextLower.substring(1) + '\uf8ff'),
-          limit(5 - results.length)
-        );
-        
-        const upperSnapshots = await getDocs(upperNameQuery);
-        
-        upperSnapshots.forEach((doc) => {
-          // Skip duplicates
-          if (results.some(r => r.id === doc.id)) return;
-          
-          const data = doc.data();
-          const nameMatch = (data.name || data.fullName || "").toLowerCase().includes(searchTextLower);
-          if (nameMatch) {
-            results.push({
-              id: doc.id,
-              name: data.name || data.fullName || "Unknown Teacher",
-              subjects: data.subjects || [],
-              avatarUrl: data.avatarUrl,
-              location: data.location || "Location not specified"
-            });
-          }
-        });
-      }
+      // Sort results - featured teachers first if that field exists
+      results.sort((a, b) => {
+        // This simple sort is based on what we expect in the data
+        // Will be better defined once we know more about the data structure
+        if ((a as any).isFeatured && !(b as any).isFeatured) return -1;
+        if (!(a as any).isFeatured && (b as any).isFeatured) return 1;
+        return 0;
+      });
       
-      // If we don't have enough results, try a fullName match
-      if (results.length < 5) {
-        const fullNameQuery = query(
-          teacherRef,
-          where("fullName", ">=", searchTextLower),
-          where("fullName", "<=", searchTextLower + '\uf8ff'),
-          limit(5 - results.length)
-        );
-        
-        const fullNameSnapshots = await getDocs(fullNameQuery);
-        
-        fullNameSnapshots.forEach((doc) => {
-          // Skip duplicates
-          if (results.some(r => r.id === doc.id)) return;
-          
-          const data = doc.data();
-          results.push({
-            id: doc.id,
-            name: data.name || data.fullName || "Unknown Teacher",
-            subjects: data.subjects || [],
-            avatarUrl: data.avatarUrl,
-            location: data.location || "Location not specified"
-          });
-        });
-      }
-      
-      // If we still don't have results, search by subjects (case-insensitive)
-      if (results.length === 0) {
-        // Get all possible case variations of the search term for subject search
-        const searchVariations = [
-          searchTextLower,
-          searchTextUpper,
-          searchText.charAt(0).toUpperCase() + searchTextLower.substring(1), // Title case
-          searchText
-        ];
-        
-        // We can use array-contains-any with up to 10 values
-        const subjectQuery = query(
-          teacherRef,
-          where("subjects", "array-contains-any", searchVariations.slice(0, 10)),
-          limit(5)
-        );
-        
-        const subjectSnapshots = await getDocs(subjectQuery);
-        
-        subjectSnapshots.forEach((doc) => {
-          // Skip duplicates
-          if (results.some(r => r.id === doc.id)) return;
-          
-          const data = doc.data();
-          results.push({
-            id: doc.id,
-            name: data.name || data.fullName || "Unknown Teacher",
-            subjects: data.subjects || [],
-            avatarUrl: data.avatarUrl,
-            location: data.location || "Location not specified"
-          });
-        });
-      }
-      
-      setSearchResults(results);
+      setSearchResults(results.slice(0, 5)); // Limit to 5 results for display
       setShowSearchResults(results.length > 0);
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error("Error searching teachers:", error);
+      
+      if (error.message && error.message.includes("requires an index")) {
+        setIndexError(true);
+      }
+      
+      // Show a helpful error message
+      setSearchResults([{
+        id: "error",
+        name: "Search temporarily unavailable",
+        location: "Please try again later"
+      }]);
+      setShowSearchResults(true);
     } finally {
       setIsSearching(false);
     }
@@ -278,11 +233,14 @@ export function Navbar({ className }: NavbarProps) {
   
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-    if (e.target.value.length >= 2) {
-      setShowSearchResults(true);
-    } else {
-      setShowSearchResults(false);
-    }
+  };
+  
+  // Direct navigation function for search results
+  const navigateToTeacher = (teacherId: string) => {
+    console.log("Navigation triggered for teacher ID:", teacherId);
+    setShowSearchResults(false);
+    // Use direct browser navigation instead of router
+    window.location.href = `/teachers/${teacherId}`;
   };
   
   const toggleMenu = () => {
@@ -408,7 +366,9 @@ export function Navbar({ className }: NavbarProps) {
               
               {/* Search Results Dropdown */}
               {showSearchResults && (
-                <div className="absolute z-20 mt-1 w-full bg-white rounded-md shadow-lg overflow-hidden">
+                <div 
+                  className="absolute z-[99999] mt-1 w-full bg-white rounded-md shadow-xl overflow-hidden"
+                >
                   {isSearching ? (
                     <div className="p-4 space-y-3">
                       <div className="flex items-center space-x-3">
@@ -427,54 +387,56 @@ export function Navbar({ className }: NavbarProps) {
                         </div>
                         <div className="w-16 h-3 bg-gray-200 rounded animate-pulse"></div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
-                        <div className="space-y-2 flex-1">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-3/5"></div>
-                        </div>
-                        <div className="w-16 h-3 bg-gray-200 rounded animate-pulse"></div>
-                      </div>
+                    </div>
+                  ) : indexError ? (
+                    <div className="py-4 px-3 text-center text-sm text-yellow-600">
+                      <p>Search index is being created</p>
+                      <p className="text-xs mt-1 text-gray-500">Please try again in a few minutes</p>
                     </div>
                   ) : searchResults.length > 0 ? (
                     <div className="max-h-80 overflow-y-auto">
                       {searchResults.map((teacher) => (
-                        <form 
-                          key={teacher.id}
-                          action={`/teachers/${teacher.id}`}
-                          method="get"
-                          className="block"
-                        >
-                          <button 
-                            type="submit" 
-                            className="w-full text-left flex items-center p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                            data-testid="search-result-item"
+                        teacher.id === "error" ? (
+                          <div key="error" className="p-3 text-center text-sm text-gray-500">
+                            <p>{teacher.name}</p>
+                            <p className="text-xs">{teacher.location}</p>
+                          </div>
+                        ) : (
+                          <a
+                            key={teacher.id}
+                            href={`/teachers/${teacher.id}`}
+                            className="block w-full text-inherit no-underline search-result-item"
+                            style={{ color: 'inherit', textDecoration: 'none' }}
                           >
-                            <div className="flex-shrink-0">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={teacher.avatarUrl || ""} alt={teacher.name} />
-                                <AvatarFallback className="bg-indigo-500 text-white">
-                                  {teacher.name.substring(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                            </div>
-                            <div className="ml-3 flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">{teacher.name}</p>
+                            <div className="p-3 hover:bg-gray-50 transition-colors duration-150 cursor-pointer">
                               <div className="flex items-center">
-                                {teacher.subjects && teacher.subjects.length > 0 && (
-                                  <p className="text-xs text-gray-500 truncate">
-                                    {teacher.subjects.slice(0, 3).join(', ')}
-                                    {teacher.subjects.length > 3 ? '...' : ''}
-                                  </p>
-                                )}
+                                <div className="flex-shrink-0">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={teacher.avatarUrl || ""} alt={teacher.name} />
+                                    <AvatarFallback className="bg-indigo-500 text-white">
+                                      {teacher.name.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                                <div className="ml-3 flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{teacher.name}</p>
+                                  <div className="flex items-center">
+                                    {teacher.subjects && teacher.subjects.length > 0 && (
+                                      <p className="text-xs text-gray-500 truncate">
+                                        {teacher.subjects.slice(0, 3).join(', ')}
+                                        {teacher.subjects.length > 3 ? '...' : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 flex items-center">
+                                  <MapPin className="h-3 w-3 mr-1" />
+                                  <span className="truncate max-w-[100px]">{teacher.location}</span>
+                                </div>
                               </div>
                             </div>
-                            <div className="text-xs text-gray-500 flex items-center">
-                              <MapPin className="h-3 w-3 mr-1" />
-                              <span className="truncate max-w-[100px]">{teacher.location}</span>
-                            </div>
-                          </button>
-                        </form>
+                          </a>
+                        )
                       ))}
                     </div>
                   ) : (
@@ -617,7 +579,9 @@ export function Navbar({ className }: NavbarProps) {
             
             {/* Mobile Search Results Dropdown */}
             {showSearchResults && (
-              <div className="absolute z-20 mt-1 w-full bg-white rounded-md shadow-lg overflow-hidden">
+              <div 
+                className="absolute z-[99999] mt-1 w-full bg-white rounded-md shadow-xl overflow-hidden"
+              >
                 {isSearching ? (
                   <div className="p-4 space-y-3">
                     <div className="flex items-center space-x-3">
@@ -634,49 +598,52 @@ export function Navbar({ className }: NavbarProps) {
                         <div className="h-3 bg-gray-200 rounded animate-pulse w-2/4"></div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
-                      <div className="space-y-2 flex-1">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-3 bg-gray-200 rounded animate-pulse w-3/5"></div>
-                      </div>
-                    </div>
+                  </div>
+                ) : indexError ? (
+                  <div className="py-4 px-3 text-center text-sm text-yellow-600">
+                    <p>Search index is being created</p>
+                    <p className="text-xs mt-1 text-gray-500">Please try again in a few minutes</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="max-h-80 overflow-y-auto">
                     {searchResults.map((teacher) => (
-                      <form 
-                        key={teacher.id}
-                        action={`/teachers/${teacher.id}`}
-                        method="get"
-                        className="block"
-                      >
-                        <button 
-                          type="submit" 
-                          className="w-full text-left flex items-center p-3 hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                          data-testid="search-result-item-mobile"
+                      teacher.id === "error" ? (
+                        <div key="error" className="p-3 text-center text-sm text-gray-500">
+                          <p>{teacher.name}</p>
+                          <p className="text-xs">{teacher.location}</p>
+                        </div>
+                      ) : (
+                        <a
+                          key={teacher.id}
+                          href={`/teachers/${teacher.id}`}
+                          className="block w-full text-inherit no-underline search-result-item"
+                          style={{ color: 'inherit', textDecoration: 'none' }}
                         >
-                          <div className="flex-shrink-0">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={teacher.avatarUrl || ""} alt={teacher.name} />
-                              <AvatarFallback className="bg-indigo-500 text-white">
-                                {teacher.name.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
-                          <div className="ml-3 flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{teacher.name}</p>
+                          <div className="p-3 hover:bg-gray-50 transition-colors duration-150 cursor-pointer">
                             <div className="flex items-center">
-                              {teacher.subjects && teacher.subjects.length > 0 && (
-                                <p className="text-xs text-gray-500 truncate">
-                                  {teacher.subjects.slice(0, 2).join(', ')}
-                                  {teacher.subjects.length > 2 ? '...' : ''}
-                                </p>
-                              )}
+                              <div className="flex-shrink-0">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={teacher.avatarUrl || ""} alt={teacher.name} />
+                                  <AvatarFallback className="bg-indigo-500 text-white">
+                                    {teacher.name.substring(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                              <div className="ml-3 flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{teacher.name}</p>
+                                <div className="flex items-center">
+                                  {teacher.subjects && teacher.subjects.length > 0 && (
+                                    <p className="text-xs text-gray-500 truncate">
+                                      {teacher.subjects.slice(0, 2).join(', ')}
+                                      {teacher.subjects.length > 2 ? '...' : ''}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </button>
-                      </form>
+                        </a>
+                      )
                     ))}
                   </div>
                 ) : (

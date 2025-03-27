@@ -260,4 +260,75 @@ export const getTeachers = async (): Promise<Teacher[]> => {
     console.error('Error fetching teachers:', error);
     return [];
   }
+};
+
+/**
+ * Get unique subjects from all teachers
+ */
+export const getUniqueSubjects = async (): Promise<string[]> => {
+  const teachers = await getTeachers();
+  const subjectsSet = new Set<string>();
+  
+  teachers.forEach(teacher => {
+    if (teacher.subjects) {
+      teacher.subjects.forEach(subject => subjectsSet.add(subject));
+    }
+    if (teacher.subject) {
+      subjectsSet.add(teacher.subject);
+    }
+  });
+  
+  return Array.from(subjectsSet).sort();
+};
+
+/**
+ * Get unique locations from all teachers
+ */
+export const getUniqueLocations = async (): Promise<string[]> => {
+  const teachers = await getTeachers();
+  const locationsSet = new Set<string>();
+  
+  teachers.forEach(teacher => {
+    if (teacher.location) {
+      locationsSet.add(teacher.location);
+    }
+  });
+  
+  return Array.from(locationsSet).sort();
+};
+
+/**
+ * Get fee range (min and max) from all teachers
+ */
+export const getFeeRange = async (): Promise<{ min: number; max: number }> => {
+  const teachers = await getTeachers();
+  let min = Infinity;
+  let max = 0;
+  
+  teachers.forEach(teacher => {
+    if (teacher.feesPerHour) {
+      min = Math.min(min, teacher.feesPerHour);
+      max = Math.max(max, teacher.feesPerHour);
+    }
+  });
+  
+  return { min: min === Infinity ? 0 : min, max: max === 0 ? 1000 : max };
+};
+
+/**
+ * Get unique teaching modes from all teachers
+ */
+export const getTeachingModes = async (): Promise<string[]> => {
+  const teachers = await getTeachers();
+  const modesSet = new Set<string>();
+  
+  teachers.forEach(teacher => {
+    if (teacher.teachingMode) {
+      // Split by comma if it's a comma-separated string
+      const modes = teacher.teachingMode.split(',').map(mode => mode.trim());
+      modes.forEach(mode => modesSet.add(mode));
+    }
+  });
+  
+  return Array.from(modesSet).sort();
 }; 

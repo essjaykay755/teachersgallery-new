@@ -5,7 +5,7 @@ import { MapPin, ChevronDown, GraduationCap, Filter, Search } from "lucide-react
 import { Pagination } from "./components/shared/pagination";
 import { useState, useEffect, useMemo } from "react";
 import { useMediaQuery } from "@/lib/hooks";
-import { getTeachers, Teacher } from "@/lib/teacher-service";
+import { getTeachers, Teacher, getUniqueSubjects, getUniqueLocations, getFeeRange, getTeachingModes } from "@/lib/teacher-service";
 import { 
   Select,
   SelectContent,
@@ -44,6 +44,12 @@ export default function Home() {
   // Sort state
   const [sortOption, setSortOption] = useState("featured");
   
+  // State for filter options
+  const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [feeRange, setFeeRange] = useState<{ min: number; max: number }>({ min: 0, max: 1000 });
+  const [teachingModeOptions, setTeachingModeOptions] = useState<string[]>([]);
+  
   // Fetch teachers from Firestore on component mount
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -62,6 +68,29 @@ export default function Home() {
     };
     
     fetchTeachers();
+  }, []);
+  
+  // Fetch filter options on component mount
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const [subjects, locations, fees, modes] = await Promise.all([
+          getUniqueSubjects(),
+          getUniqueLocations(),
+          getFeeRange(),
+          getTeachingModes()
+        ]);
+        
+        setSubjectOptions(subjects);
+        setLocationOptions(locations);
+        setFeeRange(fees);
+        setTeachingModeOptions(modes);
+      } catch (err) {
+        console.error('Error fetching filter options:', err);
+      }
+    };
+    
+    fetchFilterOptions();
   }, []);
   
   // Apply filters and sorting
@@ -228,16 +257,14 @@ export default function Home() {
     }
   };
 
-  // Shared filter content component
+  // Update FilterContent component to use dynamic options
   const FilterContent = ({ isMobileView = false }: { isMobileView?: boolean }) => (
     <div className="space-y-6">
+      {/* Subject Filter */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <span className="bg-blue-100 p-1.5 rounded-full">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-            </svg>
+            <GraduationCap className="h-4 w-4 text-blue-600" />
           </span>
           <h3 className="font-semibold text-gray-900">Subject</h3>
         </div>
@@ -247,20 +274,20 @@ export default function Home() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All Subjects">All Subjects</SelectItem>
-            <SelectItem value="Mathematics">Mathematics</SelectItem>
-            <SelectItem value="Physics">Physics</SelectItem>
-            <SelectItem value="Chemistry">Chemistry</SelectItem>
-            <SelectItem value="English Literature">English Literature</SelectItem>
-            <SelectItem value="Bengali Literature">Bengali Literature</SelectItem>
-            <SelectItem value="Computer Science">Computer Science</SelectItem>
+            {subjectOptions.map((subject) => (
+              <SelectItem key={subject} value={subject}>
+                {subject}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
-      
+
+      {/* Location Filter */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="bg-green-100 p-1.5 rounded-full">
-            <MapPin className="h-4 w-4 text-green-600" />
+          <span className="bg-blue-100 p-1.5 rounded-full">
+            <MapPin className="h-4 w-4 text-blue-600" />
           </span>
           <h3 className="font-semibold text-gray-900">Location</h3>
         </div>
@@ -270,48 +297,58 @@ export default function Home() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All Locations">All Locations</SelectItem>
-            <SelectItem value="Mumbai">Mumbai</SelectItem>
-            <SelectItem value="Delhi">Delhi</SelectItem>
-            <SelectItem value="Bangalore">Bangalore</SelectItem>
-            <SelectItem value="Kolkata">Kolkata</SelectItem>
+            {locationOptions.map((location) => (
+              <SelectItem key={location} value={location}>
+                {location}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
-      
+
+      {/* Fee Range Filter */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="bg-purple-100 p-1.5 rounded-full">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <span className="bg-blue-100 p-1.5 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="1" x2="12" y2="23"></line>
               <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
             </svg>
           </span>
-          <h3 className="font-semibold text-gray-900">Fee Range (₹)</h3>
+          <h3 className="font-semibold text-gray-900">Fee Range (₹/hr)</h3>
         </div>
-        <div className="flex items-center justify-between mb-3 px-0.5">
-          <span className="text-sm text-gray-700 font-medium">₹500</span>
-          <span className="text-sm text-gray-700 font-medium">₹{feeRangeFilter[0]}</span>
+        <div className="pt-2 px-1">
+          <Slider
+            defaultValue={[feeRange.max]}
+            max={feeRange.max}
+            min={feeRange.min}
+            step={50}
+            value={feeRangeFilter}
+            onValueChange={setFeeRangeFilter}
+            className="w-full"
+          />
+          <div className="flex justify-between mt-2 text-sm text-gray-500">
+            <span>₹{feeRange.min}</span>
+            <span>₹{feeRangeFilter[0]}</span>
+            <span>₹{feeRange.max}</span>
+          </div>
         </div>
-        <Slider
-          value={feeRangeFilter}
-          onValueChange={setFeeRangeFilter}
-          max={5000}
-          min={500}
-          step={100}
-          className="h-2"
-        />
       </div>
-      
+
+      {/* Experience Filter */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="bg-amber-100 p-1.5 rounded-full">
-            <GraduationCap className="h-4 w-4 text-amber-600" />
+          <span className="bg-blue-100 p-1.5 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
           </span>
           <h3 className="font-semibold text-gray-900">Experience</h3>
         </div>
         <Select value={experienceFilter} onValueChange={setExperienceFilter}>
           <SelectTrigger className="w-full border-gray-300 bg-white text-gray-800 h-10 focus:ring-blue-500 focus:ring-offset-0">
-            <SelectValue placeholder="Select experience" />
+            <SelectValue placeholder="Select experience range" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="Any Experience">Any Experience</SelectItem>
@@ -322,262 +359,178 @@ export default function Home() {
           </SelectContent>
         </Select>
       </div>
-      
+
+      {/* Teaching Mode Filter */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <span className="bg-blue-100 p-1.5 rounded-full">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="3" y1="9" x2="21" y2="9"></line>
-              <line x1="9" y1="21" x2="9" y2="9"></line>
+              <path d="M3 12h18M3 6h18M3 18h18"></path>
             </svg>
           </span>
           <h3 className="font-semibold text-gray-900">Teaching Mode</h3>
         </div>
-        <div className="space-y-3 mt-2">
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id={isMobileView ? "mobile-online" : "online"} 
-              checked={teachingModeFilter.includes("Online")}
-              onCheckedChange={(checked) => handleTeachingModeChange("Online", checked as boolean)}
-            />
-            <label 
-              htmlFor={isMobileView ? "mobile-online" : "online"} 
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
-            >
-              Online
-            </label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id={isMobileView ? "mobile-offline" : "offline"} 
-              checked={teachingModeFilter.includes("Offline")}
-              onCheckedChange={(checked) => handleTeachingModeChange("Offline", checked as boolean)}
-            />
-            <label 
-              htmlFor={isMobileView ? "mobile-offline" : "offline"} 
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
-            >
-              Offline
-            </label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id={isMobileView ? "mobile-hybrid" : "hybrid"} 
-              checked={teachingModeFilter.includes("Hybrid")}
-              onCheckedChange={(checked) => handleTeachingModeChange("Hybrid", checked as boolean)}
-            />
-            <label 
-              htmlFor={isMobileView ? "mobile-hybrid" : "hybrid"} 
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
-            >
-              Hybrid
-            </label>
-          </div>
+        <div className="space-y-2">
+          {teachingModeOptions.map((mode) => (
+            <div key={mode} className="flex items-center">
+              <Checkbox
+                id={`mode-${mode}`}
+                checked={teachingModeFilter.includes(mode)}
+                onCheckedChange={(checked) => handleTeachingModeChange(mode, checked as boolean)}
+              />
+              <label
+                htmlFor={`mode-${mode}`}
+                className="ml-2 text-sm font-medium text-gray-700 cursor-pointer"
+              >
+                {mode}
+              </label>
+            </div>
+          ))}
         </div>
       </div>
-      
-      {isMobileView && (
-        <div className="pt-4 space-y-3">
-          <Button className="w-full" onClick={() => {}}>Apply Filters</Button>
-          <Button 
-            className="w-full" 
-            variant="outline" 
-            onClick={handleResetFilters}
-          >
-            Reset Filters
-          </Button>
-        </div>
-      )}
-      
-      {!isMobileView && (
-        <div className="pt-4">
-          <Button 
-            className="w-full" 
-            variant="outline" 
-            onClick={handleResetFilters}
-          >
-            Reset Filters
-          </Button>
-        </div>
-      )}
+
+      {/* Reset Filters Button */}
+      <Button
+        onClick={handleResetFilters}
+        variant="outline"
+        className="w-full mt-4"
+      >
+        Reset Filters
+      </Button>
     </div>
   );
 
   return (
-    <main className="bg-gray-50 min-h-screen pb-10">
-      {/* Hero section */}
-      <div className="bg-black text-white py-16 text-center relative">
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="flex flex-col items-center">
-            <div className="mb-6">
-              <GraduationCap className="h-10 w-10 text-blue-500 mx-auto" />
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">Get your best teacher with <span className="text-blue-500">TeachersGallery</span></h1>
-            <p className="text-gray-400 max-w-2xl mx-auto mb-8 text-lg">
-              Find the perfect teacher for your learning journey. Choose from our curated selection of experienced educators.
+    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              All Teachers
+              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {filteredAndSortedTeachers.length}
+              </span>
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Find and connect with qualified teachers in your area
             </p>
           </div>
-        </div>
-      </div>
 
-      <div className="container mx-auto px-4 mt-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Mobile Filter Button - Fixed in the middle left of the page */}
-          <div className="lg:hidden fixed left-0 top-1/2 z-40 transform -translate-y-1/2">
+          {/* Sort Dropdown */}
+          <div className="w-full md:w-48">
+            <Select value={sortOption} onValueChange={setSortOption}>
+              <SelectTrigger className="w-full border-gray-300 bg-white">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="featured">Featured</SelectItem>
+                <SelectItem value="rating">Rating</SelectItem>
+                <SelectItem value="experience">Experience</SelectItem>
+                <SelectItem value="priceAsc">Price: Low to High</SelectItem>
+                <SelectItem value="priceDesc">Price: High to Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Filters Section - Desktop */}
+          <div className="hidden lg:block lg:w-1/4">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+                <Filter className="h-5 w-5 text-gray-400" />
+              </div>
+              <FilterContent />
+            </div>
+          </div>
+
+          {/* Mobile Filter Button */}
+          <div className="lg:hidden">
             <Sheet>
               <SheetTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="h-12 w-12 rounded-r-full rounded-l-none bg-white shadow-md border-gray-200"
-                >
-                  <Filter className="h-5 w-5 text-gray-700" />
-                  <span className="sr-only">Open filters</span>
+                <Button variant="outline" className="w-full">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-80 sm:w-96 pt-6">
-                <SheetHeader className="pb-4">
-                  <SheetTitle className="text-xl font-semibold flex items-center gap-2">
-                    <Filter className="h-4 w-4" /> Filters
-                  </SheetTitle>
+              <SheetContent side="left" className="w-[300px] sm:w-[400px]">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
                 </SheetHeader>
-                
-                {/* Mobile filters content */}
-                <div className="mt-2">
-                  <FilterContent isMobileView={true} />
+                <div className="py-4">
+                  <FilterContent isMobileView />
                 </div>
               </SheetContent>
             </Sheet>
           </div>
-          
-          {/* Desktop Filters sidebar - hidden on mobile */}
-          <div className="hidden lg:block lg:w-1/5">
-            <div className="bg-white rounded-xl shadow-sm p-5 lg:sticky lg:top-20 border border-gray-200">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-                <Filter className="h-4 w-4 text-gray-500" />
-              </div>
-              
-              <FilterContent />
-            </div>
-          </div>
-          
+
           {/* Teachers Grid */}
           <div className="lg:w-3/4">
-            {/* All Teachers header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-gray-900">All Teachers</h2>
-                <span className="text-xs bg-blue-100 text-blue-600 font-medium rounded-full px-2 py-0.5">{filteredAndSortedTeachers.length}</span>
-              </div>
-              <div className="flex items-center gap-2 whitespace-nowrap">
-                <span className="text-sm text-gray-600">Sort by:</span>
-                <Select value={sortOption} onValueChange={setSortOption}>
-                  <SelectTrigger className="h-9 border-gray-300 bg-white min-w-[140px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="featured">Featured</SelectItem>
-                    <SelectItem value="rating">Rating</SelectItem>
-                    <SelectItem value="experience">Experience</SelectItem>
-                    <SelectItem value="priceAsc">Price: Low to High</SelectItem>
-                    <SelectItem value="priceDesc">Price: High to Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            {/* Error state */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-                <p>{error}</p>
-              </div>
-            )}
-            
-            {/* Loading state */}
-            {isLoading && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 h-64 animate-pulse">
-                    <div className="p-6 flex items-start space-x-4">
-                      <div className="rounded-full bg-gray-200 h-16 w-16"></div>
+            {isLoading ? (
+              // Loading state
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 animate-pulse">
+                    <div className="flex items-center space-x-4">
+                      <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
                       <div className="flex-1">
-                        <div className="h-5 bg-gray-200 rounded w-3/4 mb-3"></div>
-                        <div className="h-4 bg-gray-200 rounded w-1/2 mb-3"></div>
-                        <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2 mt-2"></div>
                       </div>
-                    </div>
-                    <div className="px-6 pb-6">
-                      <div className="h-4 bg-gray-200 rounded w-full mb-3"></div>
-                      <div className="h-4 bg-gray-200 rounded w-full mb-3"></div>
-                      <div className="h-4 bg-gray-200 rounded w-full"></div>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-            
-            {/* No results state */}
-            {!isLoading && filteredAndSortedTeachers.length === 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-10 text-center">
-                <GraduationCap className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No teachers found</h3>
-                <p className="text-gray-500 max-w-md mx-auto">
-                  We couldn't find any teachers matching your criteria. Try adjusting your filters or check back later.
-                </p>
+            ) : error ? (
+              // Error state
+              <div className="text-center py-12">
+                <div className="text-red-500 mb-4">{error}</div>
+                <Button onClick={() => window.location.reload()}>
+                  Try Again
+                </Button>
               </div>
-            )}
-            
-            {/* Teachers grid */}
-            {!isLoading && visibleTeachers.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-6">
-                {visibleTeachers.map((teacher) => (
-                  <TeacherCard
-                    key={teacher.id}
-                    id={teacher.id}
-                    name={teacher.name}
-                    avatarUrl={teacher.avatarUrl}
-                    subject={teacher.subject}
-                    subjects={teacher.subjects}
-                    location={teacher.location}
-                    feesPerHour={teacher.feesPerHour}
-                    feeRange={teacher.feeRange}
-                    experience={teacher.experience}
-                    teachingMode={teacher.teachingMode}
-                    educationLevels={teacher.educationLevels}
-                    rating={teacher.rating}
-                    reviews={teacher.reviews}
-                    isVerified={teacher.isVerified}
-                    isFeatured={teacher.isFeatured}
-                  />
-                ))}
+            ) : filteredAndSortedTeachers.length === 0 ? (
+              // No results state
+              <div className="text-center py-12">
+                <p className="text-gray-500 mb-4">No teachers found matching your criteria</p>
+                <Button onClick={handleResetFilters}>
+                  Reset Filters
+                </Button>
               </div>
+            ) : (
+              // Teachers grid
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                  {visibleTeachers.map((teacher) => (
+                    <TeacherCard key={teacher.id} teacher={teacher} />
+                  ))}
+                </div>
+                
+                {/* Pagination or Load More */}
+                {isMobile ? (
+                  hasMore && (
+                    <div className="mt-8 text-center">
+                      <Button onClick={loadMoreTeachers} variant="outline">
+                        Load More
+                      </Button>
+                    </div>
+                  )
+                ) : (
+                  totalPages > 1 && (
+                    <div className="mt-8">
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={handlePageChange}
+                      />
+                    </div>
+                  )
+                )}
+              </>
             )}
-            
-            {/* Pagination */}
-            <div className="mt-10">
-              {isMobile ? (
-                hasMore && !isLoading && (
-                  <Button 
-                    onClick={loadMoreTeachers} 
-                    variant="outline" 
-                    size="lg" 
-                    className="w-full py-6 text-base"
-                  >
-                    Load More Teachers
-                  </Button>
-                )
-              ) : (
-                totalPages > 1 && !isLoading && (
-                  <Pagination 
-                    currentPage={currentPage} 
-                    totalPages={totalPages} 
-                    onPageChange={handlePageChange} 
-                  />
-                )
-              )}
-            </div>
           </div>
         </div>
       </div>
