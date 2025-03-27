@@ -269,9 +269,16 @@ export default function TeacherOnboardingStep2() {
                 >
                   <option value="">Select Experience</option>
                   <option value="Less than 1 year">Less than 1 year</option>
-                  <option value="1-2 years">1-2 years</option>
-                  <option value="3-5 years">3-5 years</option>
-                  <option value="6-10 years">6-10 years</option>
+                  <option value="1 year">1 year</option>
+                  <option value="2 years">2 years</option>
+                  <option value="3 years">3 years</option>
+                  <option value="4 years">4 years</option>
+                  <option value="5 years">5 years</option>
+                  <option value="6 years">6 years</option>
+                  <option value="7 years">7 years</option>
+                  <option value="8 years">8 years</option>
+                  <option value="9 years">9 years</option>
+                  <option value="10 years">10 years</option>
                   <option value="More than 10 years">More than 10 years</option>
                 </select>
               </div>

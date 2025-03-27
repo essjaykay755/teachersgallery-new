@@ -87,17 +87,39 @@ export function TeacherCard(props: TeacherCardProps) {
 
   // Process experience value
   const processExperience = useMemo(() => {
+    // Add debugging to track experience data
+    console.log(`TeacherCard ${id} (${name}) - Raw experience:`, experience, typeof experience);
+    
+    // Handle string experience
     if (typeof experience === 'string') {
+      const expStr = experience as string;
+      
       // Convert string values like "1-2 years" to numbers
-      if (experience === 'Less than 1 year') return 0;
-      if (experience === '1-2 years') return 1;
-      if (experience === '3-5 years') return 3;
-      if (experience === '6-10 years') return 6;
-      if (experience === 'More than 10 years') return 10;
-      return Number(experience) || 0;
+      if (expStr.toLowerCase().includes('less than 1') || expStr.toLowerCase().includes('new')) return 0;
+      if (expStr.toLowerCase().includes('1-2')) return 1;
+      if (expStr.toLowerCase().includes('3-5')) return 3;
+      if (expStr.toLowerCase().includes('6-10')) return 6;
+      if (expStr.toLowerCase().includes('more than 10') || expStr.toLowerCase().includes('10+')) return 10;
+      
+      // Try to convert to number directly
+      const numValue = Number(expStr);
+      if (!isNaN(numValue)) return numValue;
+      
+      // Try to extract numbers from strings like "5 years"
+      const match = expStr.match(/(\d+)/);
+      if (match && match[1]) {
+        return Number(match[1]);
+      }
     }
-    return experience || 0;
-  }, [experience]);
+    
+    // If it's a number, use it directly
+    if (typeof experience === 'number' && !isNaN(experience)) {
+      return Math.max(0, experience);
+    }
+    
+    // Default to 0 for unknown values
+    return 0;
+  }, [experience, id, name]);
 
   // Define color for teaching mode badge
   const getModeColor = (mode: string = "") => {

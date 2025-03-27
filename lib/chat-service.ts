@@ -71,7 +71,8 @@ export const markMessagesAsRead = async (
   try {
     // Update the conversation to indicate this user has read the messages
     await updateDoc(doc(db, 'conversations', conversationId), {
-      [`lastReadTimestamp.${userId}`]: serverTimestamp()
+      [`lastReadTimestamp.${userId}`]: serverTimestamp(),
+      [`unreadBy.${userId}`]: false // Clear the unread status for this user
     });
   } catch (error) {
     console.error('Error marking messages as read:', error);

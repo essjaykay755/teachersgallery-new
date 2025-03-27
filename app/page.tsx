@@ -132,8 +132,29 @@ export default function Home() {
         // Skip if no experience data
         if (teacher.experience === undefined || teacher.experience === null) return false;
         
-        const exp = teacher.experience;
+        // Ensure we're working with a number
+        let exp = 0;
+        if (typeof teacher.experience === 'number') {
+          exp = teacher.experience;
+        } else if (typeof teacher.experience === 'string') {
+          // Try to convert to number
+          const numExp = Number(teacher.experience);
+          if (!isNaN(numExp)) {
+            exp = numExp;
+          } else {
+            // Try to extract a number from strings like "5 years"
+            const expStr = teacher.experience as string;
+            const match = expStr.match(/(\d+)/);
+            if (match && match[1]) {
+              exp = Number(match[1]);
+            }
+          }
+        }
         
+        // Log the experience values for debugging
+        console.log(`Teacher ${teacher.name}: Filter ${experienceFilter}, Experience: ${exp}, Original: ${teacher.experience}`);
+        
+        // Apply filter based on numeric ranges
         if (experienceFilter === "1-3") {
           return exp >= 1 && exp <= 3;
         } else if (experienceFilter === "3-5") {
@@ -165,8 +186,23 @@ export default function Home() {
         return result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       case "experience":
         return result.sort((a, b) => {
-          const aExp = typeof a.experience === 'number' ? a.experience : 0;
-          const bExp = typeof b.experience === 'number' ? b.experience : 0;
+          // Add debugging information
+          console.log('Sorting by experience:', {
+            teacherA: a.name,
+            teacherB: b.name,
+            expA: a.experience,
+            expB: b.experience,
+            typeA: typeof a.experience,
+            typeB: typeof b.experience
+          });
+          
+          // Ensure we're working with numbers
+          const aExp = typeof a.experience === 'number' ? a.experience : 
+                      typeof a.experience === 'string' ? Number(a.experience) || 0 : 0;
+          const bExp = typeof b.experience === 'number' ? b.experience : 
+                      typeof b.experience === 'string' ? Number(b.experience) || 0 : 0;
+          
+          // Sort descending by experience (most experienced first)
           return bExp - aExp;
         });
       case "priceAsc":
@@ -401,8 +437,23 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen bg-gray-50 pb-10">
+      {/* Hero section */}
+      <div className="bg-black text-white py-16 text-center relative">
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="flex flex-col items-center">
+            <div className="mb-6">
+              <GraduationCap className="h-10 w-10 text-blue-500 mx-auto" />
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold mb-4">Get your best teacher with <span className="text-blue-500">TeachersGallery</span></h1>
+            <p className="text-gray-400 max-w-2xl mx-auto mb-8 text-lg">
+              Find the perfect teacher for your learning journey. Choose from our curated selection of experienced educators.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>

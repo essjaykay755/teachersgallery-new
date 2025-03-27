@@ -112,17 +112,36 @@ interface TeacherData {
   }>;
 }
 
-// Helper function to convert experience string to number
-const getExperienceNumber = (exp: string | number): number => {
-  if (typeof exp === 'number') return exp;
-  if (typeof exp === 'string') {
-    if (exp === 'Less than 1 year') return 0;
-    if (exp === '1-2 years') return 1;
-    if (exp === '3-5 years') return 3;
-    if (exp === '6-10 years') return 6;
-    if (exp === 'More than 10 years') return 10;
-    return Number(exp) || 0;
+// Helper function to convert experience to number
+const getExperienceNumber = (exp: any): number => {
+  // Handle numeric experience
+  if (typeof exp === 'number' && !isNaN(exp)) {
+    return Math.max(0, exp);
   }
+  
+  // Handle string experience with text descriptions
+  if (typeof exp === 'string') {
+    // Handle common text patterns
+    if (exp.toLowerCase().includes('less than 1') || 
+        exp.toLowerCase().includes('new')) return 0;
+    if (exp.toLowerCase().includes('1-2')) return 1;
+    if (exp.toLowerCase().includes('3-5')) return 3;
+    if (exp.toLowerCase().includes('6-10')) return 6;
+    if (exp.toLowerCase().includes('more than 10') || 
+        exp.toLowerCase().includes('10+')) return 10;
+        
+    // Try simple numeric conversion
+    const numValue = Number(exp);
+    if (!isNaN(numValue)) return Math.max(0, numValue);
+    
+    // Try to extract a number from text like "5 years experience"
+    const match = exp.match(/(\d+)/);
+    if (match && match[1]) {
+      return Math.max(0, Number(match[1]));
+    }
+  }
+  
+  // For any other case (undefined, null, or unparsable), return 0
   return 0;
 };
 
@@ -236,6 +255,11 @@ export default function TeacherProfile() {
           return 'Online';
         };
         
+        // Determine which experience field to use
+        const experienceField = data.experience !== undefined ? data.experience :
+                               data.yearsOfExperience !== undefined ? data.yearsOfExperience :
+                               data.experienceYears !== undefined ? data.experienceYears : 0;
+        
         const teacherData = {
           id: teacherId,
           name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
@@ -243,7 +267,7 @@ export default function TeacherProfile() {
           location: getLocation(),
           feesPerHour: Number(data.feesPerHour) || 0,
           feeRange: processFeeRange(),
-          experience: getExperienceNumber(data.experience) || getExperienceNumber(data.yearsOfExperience) || 0,
+          experience: getExperienceNumber(experienceField),
           teachingMode: getTeachingModes(),
           educationLevels: getEducationLevels() || [],
           rating: Number(data.rating) || 0,

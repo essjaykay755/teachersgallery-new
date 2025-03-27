@@ -226,8 +226,19 @@ function ConversationPage() {
         setMessages(messagesData);
         
         // Mark messages as read
-        if (messagesData.length > 0) {
+        if (user) {
           markMessagesAsRead(conversationId, user.uid);
+          
+          // Also update the local conversation state to reflect read status
+          if (conversation && conversation.unreadBy && conversation.unreadBy[user.uid]) {
+            setConversation({
+              ...conversation,
+              unreadBy: {
+                ...conversation.unreadBy,
+                [user.uid]: false
+              }
+            });
+          }
         }
       });
       

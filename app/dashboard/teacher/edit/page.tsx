@@ -523,9 +523,16 @@ function TeacherEditProfilePage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Less than 1 year">Less than 1 year</SelectItem>
-                          <SelectItem value="1-2 years">1-2 years</SelectItem>
-                          <SelectItem value="3-5 years">3-5 years</SelectItem>
-                          <SelectItem value="6-10 years">6-10 years</SelectItem>
+                          <SelectItem value="1 year">1 year</SelectItem>
+                          <SelectItem value="2 years">2 years</SelectItem>
+                          <SelectItem value="3 years">3 years</SelectItem>
+                          <SelectItem value="4 years">4 years</SelectItem>
+                          <SelectItem value="5 years">5 years</SelectItem>
+                          <SelectItem value="6 years">6 years</SelectItem>
+                          <SelectItem value="7 years">7 years</SelectItem>
+                          <SelectItem value="8 years">8 years</SelectItem>
+                          <SelectItem value="9 years">9 years</SelectItem>
+                          <SelectItem value="10 years">10 years</SelectItem>
                           <SelectItem value="More than 10 years">More than 10 years</SelectItem>
                         </SelectContent>
                       </Select>

@@ -108,6 +108,116 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     return 'Online';
   };
   
+  const getExperience = (): number => {
+    console.log(`Processing experience for ${doc.id}:`, {
+      experience: data.experience,
+      yearsOfExperience: data.yearsOfExperience,
+      experienceYears: data.experienceYears,
+      workHistory: data.workHistory,
+      types: {
+        experience: typeof data.experience,
+        yearsOfExperience: typeof data.yearsOfExperience,
+        experienceYears: typeof data.experienceYears
+      }
+    });
+    
+    // Try to handle experience as a number first
+    if (typeof data.experience === 'number' && !isNaN(data.experience)) {
+      return Math.max(0, data.experience);
+    }
+    if (typeof data.yearsOfExperience === 'number' && !isNaN(data.yearsOfExperience)) {
+      return Math.max(0, data.yearsOfExperience);
+    }
+    if (typeof data.experienceYears === 'number' && !isNaN(data.experienceYears)) {
+      return Math.max(0, data.experienceYears);
+    }
+    
+    // Try to convert string values to numbers
+    if (typeof data.experience === 'string') {
+      // Directly handle common text descriptions
+      if (data.experience.toLowerCase().includes('less than 1')) return 0;
+      if (data.experience.toLowerCase().includes('new')) return 0;
+      if (data.experience.toLowerCase().includes('1-2')) return 1;
+      if (data.experience.toLowerCase().includes('3-5')) return 3;
+      if (data.experience.toLowerCase().includes('6-10')) return 6;
+      if (data.experience.toLowerCase().includes('more than 10') || 
+          data.experience.toLowerCase().includes('10+')) return 10;
+      
+      // Try numeric conversion
+      const numValue = Number(data.experience);
+      if (!isNaN(numValue)) return Math.max(0, numValue);
+      
+      // Extract numbers from strings like "5 years"
+      const match = data.experience.match(/(\d+)/);
+      if (match && match[1]) {
+        return Math.max(0, Number(match[1]));
+      }
+    }
+    
+    // Try the same with other field names
+    if (typeof data.yearsOfExperience === 'string') {
+      const numValue = Number(data.yearsOfExperience);
+      if (!isNaN(numValue)) return Math.max(0, numValue);
+      
+      // Handle text descriptions
+      if (data.yearsOfExperience.toLowerCase().includes('less than 1')) return 0;
+      if (data.yearsOfExperience.toLowerCase().includes('1-2')) return 1;
+      if (data.yearsOfExperience.toLowerCase().includes('3-5')) return 3;
+      if (data.yearsOfExperience.toLowerCase().includes('6-10')) return 6;
+      if (data.yearsOfExperience.toLowerCase().includes('more than 10')) return 10;
+      
+      // Extract numbers
+      const match = data.yearsOfExperience.match(/(\d+)/);
+      if (match && match[1]) {
+        return Math.max(0, Number(match[1]));
+      }
+    }
+    
+    // Check for workHistory (array of jobs) to calculate years
+    if (Array.isArray(data.workHistory) && data.workHistory.length > 0) {
+      // Calculate total years from work history
+      let totalYears = 0;
+      
+      for (const job of data.workHistory) {
+        // Skip if missing required fields
+        if (!job.startDate) continue;
+        
+        let startYear = 0;
+        let endYear = 0;
+        
+        // Parse start date
+        if (typeof job.startDate === 'string') {
+          const startMatch = job.startDate.match(/\b(\d{4})\b/);
+          if (startMatch && startMatch[1]) {
+            startYear = parseInt(startMatch[1]);
+          }
+        }
+        
+        // Parse end date (or use current year if job is current)
+        if (job.current) {
+          endYear = new Date().getFullYear();
+        } else if (job.endDate && typeof job.endDate === 'string') {
+          const endMatch = job.endDate.match(/\b(\d{4})\b/);
+          if (endMatch && endMatch[1]) {
+            endYear = parseInt(endMatch[1]);
+          }
+        }
+        
+        // Add years if we have valid dates
+        if (startYear > 0 && endYear > 0 && endYear >= startYear) {
+          totalYears += (endYear - startYear);
+        }
+      }
+      
+      if (totalYears > 0) {
+        return totalYears;
+      }
+    }
+    
+    // Default to 0 for new teachers or invalid values
+    return 0;
+  };
+  
   return {
     id: doc.id,
     name: data.name || data.fullName || data.teacherName || 'Unknown Teacher',
@@ -116,7 +226,7 @@ const teacherConverter = (doc: QueryDocumentSnapshot<DocumentData>): Teacher => 
     location: getLocation(),
     feesPerHour: Number(data.feesPerHour) || 0,
     feeRange: data.feeRange || null,
-    experience: Number(data.experience) || Number(data.yearsOfExperience) || Number(data.experienceYears) || 0,
+    experience: getExperience(),
     teachingMode: getTeachingModes(),
     educationLevels: getEducationLevels() || [],
     rating: Number(data.rating) || 0, // Only use actual rating from DB, don't generate synthetic ones

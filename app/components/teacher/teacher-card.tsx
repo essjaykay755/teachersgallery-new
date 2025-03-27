@@ -33,8 +33,6 @@ export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
     isVisible = true,
   } = teacher;
 
-  console.log(`TeacherCard ${id} (${name}): experience value:`, experience, typeof experience);
-
   // Display subject either from subjects array or from subject string
   const displaySubject = useMemo(() => {
     if (subjects && subjects.length > 0) return subjects[0];
@@ -71,43 +69,51 @@ export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
 
   // Process experience value
   const processExperience = useMemo(() => {
-    console.log(`Processing experience for ${id} (${name}):`, experience, typeof experience);
+    // Add more detailed debugging to track experience values
+    console.log(`TeacherCard ${id} (${name}) - Raw experience:`, experience, typeof experience);
     
-    // Handle string values
-    if (typeof experience === 'string') {
-      const expString = experience as string;
-      
-      // Check if it's a numeric string first
-      const numericValue = Number(expString);
-      if (!isNaN(numericValue)) {
-        return numericValue;
+    // Process experience - simple function to handle all cases
+    const getExperienceValue = (exp: unknown): number => {
+      // Handle numeric experience
+      if (typeof exp === 'number' && !isNaN(exp)) {
+        return Math.max(0, exp);
       }
       
-      // Handle descriptive strings
-      if (expString.toLowerCase().includes('less than 1')) return 0;
-      if (expString.toLowerCase().includes('1-2')) return 1;
-      if (expString.toLowerCase().includes('3-5')) return 3;
-      if (expString.toLowerCase().includes('6-10')) return 6;
-      if (expString.toLowerCase().includes('more than 10') || 
-          expString.toLowerCase().includes('10+')) return 10;
-      
-      // Try to extract numeric values from strings like "5 years"
-      const match = expString.match(/(\d+)/);
-      if (match && match[1]) {
-        return Number(match[1]);
+      // Handle string experience with text descriptions
+      if (typeof exp === 'string') {
+        // Handle common text patterns
+        if (exp.toLowerCase().includes('less than 1') || 
+            exp.toLowerCase().includes('new')) return 0;
+        if (exp.toLowerCase().includes('1-2')) return 1;
+        if (exp.toLowerCase().includes('3-5')) return 3;
+        if (exp.toLowerCase().includes('6-10')) return 6;
+        if (exp.toLowerCase().includes('more than 10') || 
+            exp.toLowerCase().includes('10+')) return 10;
+            
+        // Try simple numeric conversion
+        const numValue = Number(exp);
+        if (!isNaN(numValue)) return Math.max(0, numValue);
+        
+        // Try to extract a number from text like "5 years experience"
+        const match = exp.match(/(\d+)/);
+        if (match && match[1]) {
+          return Math.max(0, Number(match[1]));
+        }
       }
       
+      // For any other case (undefined, null, or unparsable), return 0
       return 0;
-    }
+    };
     
-    // Handle number values
-    if (typeof experience === 'number' && !isNaN(experience)) {
-      return experience;
-    }
-    
-    // Handle undefined, null, or other invalid types
-    return 0;
+    const expValue = getExperienceValue(experience);
+    console.log(`TeacherCard ${id} (${name}) - Processed experience:`, expValue);
+    return expValue;
   }, [experience, id, name]);
+
+  // Create a separate flag for "new teacher" status to make logic clearer
+  const isNewTeacher = useMemo(() => {
+    return processExperience === 0;
+  }, [processExperience]);
 
   // Safe version of educationLevels
   const safeEducationLevels = useMemo(() => {
@@ -187,9 +193,14 @@ export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
                 <MapPin className="h-3 w-3 mr-1 text-gray-400" />
                 <span>{location}</span>
               </div>
-              {processExperience === 0 && (
+              {isNewTeacher ? (
                 <div className="flex items-center text-xs text-gray-500 mt-1">
                   <span className="text-blue-600 font-medium">New teacher</span>
+                </div>
+              ) : (
+                <div className="flex items-center text-xs text-gray-500 mt-1">
+                  <Clock className="h-3 w-3 mr-1 text-gray-400" />
+                  <span>{processExperience} {processExperience === 1 ? 'year' : 'years'} experience</span>
                 </div>
               )}
             </div>
@@ -225,13 +236,6 @@ export function TeacherCard({ teacher, className = "" }: TeacherCardProps) {
                   +{safeEducationLevels.length - 2} more
                 </Badge>
               )}
-            </div>
-          )}
-          
-          {processExperience > 0 && (
-            <div className="flex items-center text-sm">
-              <Clock className="h-3.5 w-3.5 mr-1.5 text-gray-400" />
-              <span className="text-gray-600">{processExperience} {processExperience === 1 ? 'year' : 'years'}</span>
             </div>
           )}
         </CardContent>
