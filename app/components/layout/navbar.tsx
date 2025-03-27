@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Menu, X, MapPin, User, LogOut, Home, MessageSquare, HelpCircle, Star, Search } from "lucide-react";
+import { Menu, X, MapPin, User, LogOut, Home, MessageSquare, HelpCircle, Star, Search, Bell, LayoutDashboard, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "@/app/components/shared/notification-dropdown";
-import { NotificationsProvider } from "@/lib/notifications-context";
+import { NotificationsProvider, useNotifications } from "@/lib/notifications-context";
 import ClientOnly from "@/app/components/client-only";
 import { doc, getDoc, collection, query, where, getDocs, limit, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 
 // Define teacher type for search results
 interface TeacherSearchResult {
@@ -49,6 +50,18 @@ export function Navbar({ className }: NavbarProps) {
   const searchRef = useRef<HTMLDivElement>(null);
   const { user, userProfile, logout, isLoading } = useAuth();
   const router = useRouter();
+  
+  // Get notification information
+  let unreadCount = 0;
+  try {
+    const notificationsContext = useNotifications();
+    if (notificationsContext) {
+      unreadCount = notificationsContext.unreadCount;
+    }
+  } catch (error) {
+    console.error("Error using notifications in navbar:", error);
+    // Continue with zero unread count
+  }
   
   useEffect(() => {
     setIsClientSide(true);
@@ -335,8 +348,10 @@ export function Navbar({ className }: NavbarProps) {
     >
       <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 py-2">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 flex items-center">
+          {/* Left section: Logo, Find Teachers, Messages */}
+          <div className="flex items-center gap-6">
+            {/* Logo */}
+            <div className="flex-shrink-0">
               <Link href="/" className="flex items-center group">
                 <div className="relative w-44 h-11 transition-transform duration-300 group-hover:scale-105">
                   <Image 
@@ -353,7 +368,9 @@ export function Navbar({ className }: NavbarProps) {
                 </div>
               </Link>
             </div>
-            <div className="hidden md:flex md:space-x-8 ml-10">
+            
+            {/* Navigation links - only visible on large screens */}
+            <div className="hidden lg:flex lg:space-x-6">
               <Link
                 href="/"
                 className="flex items-center text-gray-300 relative px-1 py-3 text-sm font-medium group"
@@ -370,22 +387,16 @@ export function Navbar({ className }: NavbarProps) {
                   <span className="transition-colors duration-200 group-hover:text-blue-400">Messages</span>
                 </Link>
               )}
-              <Link
-                href="/faq"
-                className="flex items-center text-gray-300 relative px-1 py-3 text-sm font-medium group"
-              >
-                <HelpCircle className="h-4 w-4 mr-1.5" />
-                <span className="transition-colors duration-200 group-hover:text-blue-400">FAQ</span>
-              </Link>
             </div>
           </div>
           
-          <div className="hidden md:flex items-center flex-1 max-w-xl mx-4" ref={searchRef}>
-            <div className="w-full relative group">
+          {/* Center section: Search */}
+          <div className="hidden md:block mx-auto max-w-md w-full px-6">
+            <div className="w-full relative group" ref={searchRef}>
               <input
                 type="text"
                 placeholder="Search teachers by name, subject, or location..."
-                className="block w-full max-w-md pl-4 pr-3 py-1.5 rounded-full bg-gray-900/90 border border-gray-700 hover:border-gray-600 focus:border-blue-500 backdrop-blur-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
+                className="block w-full pl-4 pr-3 py-1.5 rounded-full bg-gray-900/90 border border-gray-700 hover:border-gray-600 focus:border-blue-500 backdrop-blur-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 text-sm text-gray-300 placeholder-gray-400"
                 value={searchQuery}
                 onChange={handleSearchInputChange}
                 onFocus={() => {
@@ -397,7 +408,7 @@ export function Navbar({ className }: NavbarProps) {
               
               {/* Search Results Dropdown */}
               {showSearchResults && (
-                <div className="absolute z-20 mt-1 w-full max-w-md bg-white rounded-md shadow-lg overflow-hidden">
+                <div className="absolute z-20 mt-1 w-full bg-white rounded-md shadow-lg overflow-hidden">
                   {isSearching ? (
                     <div className="p-4 space-y-3">
                       <div className="flex items-center space-x-3">
@@ -476,19 +487,33 @@ export function Navbar({ className }: NavbarProps) {
             </div>
           </div>
           
-          <div className="hidden md:flex items-center gap-6">
-            <div className="flex items-center text-sm text-gray-300 hover:text-white transition-colors duration-200 mr-1">
-              <MapPin className="h-4 w-4 mr-1 text-gray-300" />
-              <span>Mumbai, Maharashtra</span>
+          {/* Right section: Location, Notifications, Avatar */}
+          <div className="flex items-center gap-5">
+            {/* Location badge - only visible on large screens */}
+            <div className="hidden lg:flex items-center">
+              <div className="flex items-center">
+                <MapPin className="h-4 w-4 text-gray-400 mr-1" />
+                <span className="text-sm font-medium text-gray-300">Mumbai, Maharashtra</span>
+              </div>
             </div>
             
-            {user ? (
-              <div className="flex items-center gap-4 relative">
-                {renderNotificationComponents()}
+            {/* Notification bell */}
+            <div className="flex items-center">
+              {isClientSide && renderNotificationComponents()}
+            </div>
+            
+            {/* User Profile/Avatar */}
+            {user && isClientSide ? (
+              <div className="relative">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="focus:outline-none transition-transform hover:scale-105 duration-200">
-                      <Avatar className="h-8 w-8 cursor-pointer">
+                    <button 
+                      className="flex text-sm rounded-full focus:outline-none"
+                      id="user-menu"
+                      aria-haspopup="true"
+                    >
+                      <span className="sr-only">Open user menu</span>
+                      <Avatar className="h-8 w-8">
                         <AvatarImage src={avatarUrl || ""} alt={userName || user.email || "User"} />
                         <AvatarFallback className="bg-indigo-500 text-white">
                           {getUserInitials()}
@@ -530,6 +555,11 @@ export function Navbar({ className }: NavbarProps) {
                         </Link>
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem asChild>
+                      <Link href="/faq" className="cursor-pointer">
+                        FAQ
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-red-600 cursor-pointer" onClick={handleLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
@@ -538,53 +568,40 @@ export function Navbar({ className }: NavbarProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <Link 
-                  href="/login"
-                  className="text-sm font-medium text-gray-300 hover:text-blue-300 transition-colors duration-200"
-                >
+            ) : !isLoading && !user ? (
+              <div className="hidden lg:flex items-center space-x-2">
+                <Link href="/login" className="text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-md transition-colors duration-150">
                   Sign in
                 </Link>
-                <Link 
-                  href="/register"
-                  className="text-sm font-medium bg-indigo-500 hover:bg-indigo-600 px-3 py-1 rounded-full shadow-md hover:shadow-indigo-500/20 transition-all duration-200"
-                >
+                <Link href="/register" className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-md transition-colors duration-150">
                   Register
                 </Link>
               </div>
-            )}
-          </div>
-          
-          <div className="flex items-center md:hidden">
+            ) : null}
+            
+            {/* Hamburger Menu - mobile and tablet only */}
             <button
               onClick={toggleMenu}
-              type="button"
-              className="inline-flex items-center justify-center p-1.5 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors duration-200"
-              aria-controls="mobile-menu"
-              aria-expanded="false"
+              className="p-1 rounded-md text-gray-300 hover:bg-gray-800 hover:text-white lg:hidden focus:outline-none"
             >
-              <span className="sr-only">Open main menu</span>
-              {isMenuOpen ? (
-                <X className="block h-5 w-5" aria-hidden="true" />
-              ) : (
-                <Menu className="block h-5 w-5" aria-hidden="true" />
-              )}
+              <Menu className="h-6 w-6" />
             </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile menu, show/hide based on menu state */}
+      
+      {/* Mobile/Tablet Menu - Modified to dropdown style instead of slide-in */}
       <div
-        className={cn("md:hidden transition-all duration-300 ease-in-out", {
+        className={cn("lg:hidden transition-all duration-300 ease-in-out", {
           "max-h-screen opacity-100": isMenuOpen,
           "max-h-0 opacity-0 overflow-hidden": !isMenuOpen,
         })}
         id="mobile-menu"
       >
-        <div className="p-4 space-y-4 border-t border-gray-700 bg-black">
-          <div className="relative" ref={searchRef}>
+        {/* Mobile search - visible only on smallest screens */}
+        <div className="p-4 space-y-3 border-t border-gray-700 bg-black">
+          {/* 1. Search Bar (only for mobile, not tablets) */}
+          <div className="relative md:hidden" ref={searchRef}>
             <input
               type="text"
               placeholder="Search teachers..."
@@ -671,44 +688,81 @@ export function Navbar({ className }: NavbarProps) {
             )}
           </div>
           
-          <div className="flex items-center text-sm text-gray-300 mb-4">
-            <MapPin className="h-4 w-4 mr-1 text-gray-300" />
-            <span>Mumbai, Maharashtra</span>
-          </div>
-          
-          <div className="space-y-2">
+          {/* Navigation Links - rearranged to match screenshot */}
+          <div className="space-y-2 mt-3">
+            {/* Location */}
+            <div className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150">
+              <MapPin className="h-4 w-4 mr-2" />
+              <span>Mumbai, Maharashtra</span>
+            </div>
+            
+            {/* Find Teachers */}
             <Link
               href="/"
               className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+              onClick={toggleMenu}
             >
               <Home className="h-4 w-4 mr-2" />
               Find Teachers
             </Link>
-            {user && (
-              <>
-                <Link
-                  href="/dashboard/messages"
-                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Messages
-                </Link>
-                <div className="flex items-center px-3 py-2">
-                  {renderNotificationComponents()}
-                  <span className="ml-2 text-sm font-medium text-gray-300">Notifications</span>
-                </div>
-              </>
-            )}
-            <Link
-              href="/faq"
-              className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
-            >
-              <HelpCircle className="h-4 w-4 mr-2" />
-              FAQ
-            </Link>
             
+            {/* Dashboard */}
+            {user && (
+              <Link
+                href={`/dashboard/${userProfile?.userType || ""}`}
+                className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                onClick={toggleMenu}
+              >
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Dashboard
+              </Link>
+            )}
+            
+            {/* Messages */}
+            {user && (
+              <Link
+                href="/dashboard/messages"
+                className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                onClick={toggleMenu}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Messages
+              </Link>
+            )}
+            
+            {/* Notifications */}
+            {user && (
+              <Link
+                href="/dashboard/notifications"
+                className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                onClick={toggleMenu}
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                Notifications
+                {unreadCount > 0 && (
+                  <Badge variant="destructive" className="ml-2 text-xs py-0.5 px-1.5 rounded-full">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Badge>
+                )}
+              </Link>
+            )}
+            
+            {/* Phone Requests - only for teachers */}
+            {user && userProfile?.userType === 'teacher' && (
+              <Link
+                href="/dashboard/phone-requests"
+                className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                onClick={toggleMenu}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                Phone Requests
+              </Link>
+            )}
+            
+            {/* User profile section */}
             {user ? (
               <>
+                {/* Profile section with user info */}
                 <div className="flex items-center gap-3 px-3 py-3 mt-2 border-t border-gray-800">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={avatarUrl || ""} alt={userName || user.email || "User"} />
@@ -724,34 +778,61 @@ export function Navbar({ className }: NavbarProps) {
                   </div>
                 </div>
                 
+                {/* Your Profile */}
                 <Link
                   href="/dashboard"
                   className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                  onClick={toggleMenu}
                 >
                   <User className="h-4 w-4 mr-2" />
                   Your Profile
                 </Link>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left flex items-center px-3 py-2 text-sm font-medium text-gray-300 hover:bg-red-500/10 rounded-lg transition-colors duration-150"
+                
+                {/* FAQ */}
+                <Link
+                  href="/faq"
+                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                  onClick={toggleMenu}
                 >
-                  <div className="flex items-center text-red-400">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign out
-                  </div>
+                  <HelpCircle className="h-4 w-4 mr-2" />
+                  FAQ
+                </Link>
+                
+                {/* Sign out */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                    toggleMenu();
+                  }}
+                  className="w-full text-left flex items-center px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg transition-colors duration-150"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign out
                 </button>
               </>
             ) : (
               <div className="flex flex-col gap-2 mt-4">
+                <Link
+                  href="/faq"
+                  className="flex items-center text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-900/80 rounded-lg transition-colors duration-150"
+                  onClick={toggleMenu}
+                >
+                  <HelpCircle className="h-4 w-4 mr-2" />
+                  FAQ
+                </Link>
+                
                 <Link 
                   href="/login"
                   className="block w-full text-center px-3 py-2 text-sm font-medium text-gray-300 border border-gray-600 hover:border-gray-500 hover:bg-gray-900/60 rounded-lg transition-all duration-200"
+                  onClick={toggleMenu}
                 >
                   Sign in
                 </Link>
                 <Link 
                   href="/register"
                   className="block w-full text-center px-3 py-2 text-sm font-medium text-gray-300 bg-indigo-500 hover:bg-indigo-600 rounded-lg shadow-md transition-all duration-200"
+                  onClick={toggleMenu}
                 >
                   Register
                 </Link>

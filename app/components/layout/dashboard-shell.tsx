@@ -156,19 +156,51 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
       )}
     </Link>
   );
+  
+  // Render a mobile navigation card
+  const renderMobileNavCard = (item: NavigationItem) => (
+    <Link
+      key={item.href}
+      href={item.disabled ? "#" : item.href}
+      onClick={(e) => {
+        if (item.disabled) {
+          e.preventDefault();
+        }
+      }}
+      className={cn(
+        "flex flex-col items-center justify-center p-3 rounded-lg transition-all w-28 shrink-0 h-24",
+        item.active 
+          ? "bg-blue-50 border-blue-100 border text-blue-600" 
+          : "bg-white border border-gray-100 text-gray-700 hover:bg-gray-50",
+        item.disabled && "opacity-80 cursor-not-allowed hover:bg-white"
+      )}
+    >
+      <div className={cn(
+        "p-2 rounded-full mb-1.5",
+        item.active ? "bg-blue-100" : "bg-gray-100"
+      )}>
+        <item.icon className={cn(
+          "h-5 w-5", 
+          item.active ? "text-blue-600" : "text-gray-500"
+        )} />
+      </div>
+      <span className="text-xs font-medium text-center">{item.title}</span>
+      {item.badge && (
+        <Badge variant="destructive" className="mt-1 text-xs py-0.5 px-1.5 rounded-full">
+          {item.badge > 9 ? '9+' : item.badge}
+        </Badge>
+      )}
+      {item.disabled && (
+        <Badge variant="outline" className="mt-1 text-xs py-0.5 px-1.5 rounded-full bg-blue-50 text-blue-600 border-blue-100">
+          Soon
+        </Badge>
+      )}
+    </Link>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile header */}
-      <header className="sticky top-0 z-10 flex h-16 items-center bg-white border-b shadow-sm lg:hidden">
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="px-4 text-gray-500 hover:text-gray-900"
-        >
-          <Menu className="h-6 w-6" />
-        </button>
-        <span className="text-xl font-semibold text-blue-600 ml-4">TeachersGallery</span>
-      </header>
+      {/* Remove the mobile header as it's redundant */}
       
       {/* Mobile menu overlay */}
       <div 
@@ -216,7 +248,7 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
       {/* Container with vertical tabbed navigation and content */}
       <div className="mx-auto max-w-6xl p-4 md:p-6 lg:p-8">
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Vertical tabbed navigation */}
+          {/* Vertical tabbed navigation - desktop only */}
           <div className="hidden lg:block w-60 shrink-0">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 py-2 h-fit">
               <div className="flex flex-col">
@@ -233,8 +265,29 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
             </div>
           </div>
           
-          {/* Main content */}
+          {/* Main content with mobile navigation cards */}
           <div className="flex-1">
+            {/* Mobile navigation cards - only shown on small screens */}
+            {/* Removed for mobile and handled in navbar, but kept for desktop */}
+            <div className="hidden md:block lg:hidden mb-6">
+              <div className="overflow-x-auto pb-2 -mx-4 px-4">
+                <div className="flex space-x-3">
+                  {navigationItems.map(renderMobileNavCard)}
+                  {/* Logout button as a card */}
+                  <button
+                    onClick={logout}
+                    className="flex flex-col items-center justify-center p-3 rounded-lg bg-white border border-gray-100 text-red-600 hover:bg-red-50 transition-all w-28 shrink-0 h-24"
+                  >
+                    <div className="p-2 rounded-full bg-red-50 mb-1.5">
+                      <LogOut className="h-5 w-5 text-red-500" />
+                    </div>
+                    <span className="text-xs font-medium">Logout</span>
+                  </button>
+                </div>
+              </div>
+              <div className="h-1 w-full bg-gradient-to-r from-blue-50 via-blue-100 to-blue-50 rounded-full mt-2 mb-4" />
+            </div>
+            
             {children}
           </div>
         </div>
