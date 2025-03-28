@@ -385,12 +385,13 @@ export default function TeacherProfile() {
       });
       
       // Create notification for the recipient
-      await createMessageNotification(
-        teacherId,
-        user.uid,
+      await createMessageNotification({
+        recipientId: teacherId,
+        senderId: user.uid,
+        senderName: user.displayName || undefined,
         conversationId,
-        message
-      );
+        messageText: message
+      });
       
       setShowMessageForm(false);
     } catch (error) {
@@ -416,12 +417,13 @@ export default function TeacherProfile() {
       });
       
       // Create notification for the teacher
-      await createPhoneRequestNotification(
+      await createPhoneRequestNotification({
         teacherId,
-        user.uid,
-        requestRef.id,
-        'pending'
-      );
+        requesterId: user.uid,
+        requesterName: user.displayName || undefined,
+        requestId: requestRef.id,
+        status: 'pending'
+      });
       
       setPhoneRequestStatus('pending');
       setShowPhoneRequest(false);

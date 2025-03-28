@@ -6,8 +6,8 @@ import { Textarea } from "@/app/components/shared/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { Star } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, doc, getDoc } from "firebase/firestore";
-import { createReviewNotification } from "@/lib/notification-service";
+import { doc, getDoc } from "firebase/firestore";
+import { addTeacherReview } from "@/lib/review-service";
 
 interface ReviewFormProps {
   teacherId: string;
@@ -51,39 +51,6 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
     
     fetchUserName();
   }, [user, userProfile]);
-  
-  // Direct implementation to submit a review using Firestore
-  const submitReview = async (reviewData: any) => {
-    try {
-      console.log("Directly submitting review to Firestore:", reviewData);
-      const reviewsCollection = collection(db, 'reviews');
-      
-      // Add the review with a regular Date instead of serverTimestamp
-      const docRef = await addDoc(reviewsCollection, {
-        ...reviewData,
-        createdAt: new Date()
-      });
-      
-      console.log("Review added successfully with ID:", docRef.id);
-      
-      // Create notification for the teacher
-      setTimeout(() => {
-        createReviewNotification(
-          reviewData.teacherId, 
-          reviewData.reviewerId, 
-          docRef.id, 
-          reviewData.rating
-        ).catch(notifError => {
-          console.error('Error creating review notification, but review was created:', notifError);
-        });
-      }, 200);
-      
-      return docRef.id;
-    } catch (error) {
-      console.error("Error directly submitting review:", error);
-      throw error;
-    }
-  };
   
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -140,8 +107,8 @@ export function ReviewForm({ teacherId, onClose, onSuccess }: ReviewFormProps) {
         Object.assign(reviewData, { reviewerAvatarUrl: avatarUrl });
       }
       
-      // Submit review directly using Firestore
-      await submitReview(reviewData);
+      // Use the review service instead of direct submission
+      await addTeacherReview(reviewData);
       
       onSuccess();
     } catch (err: any) {

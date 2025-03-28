@@ -3,10 +3,189 @@ import {
   addDoc, 
   serverTimestamp, 
   getDoc, 
-  doc 
+  doc, 
+  query, 
+  where, 
+  getDocs 
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { NotificationType } from "./notifications-context";
+
+// Helper function to get a user's full name from various collections
+async function getUserFullName(userId: string, userTypeHint?: string): Promise<string> {
+  console.log(`Looking up full name for user ID: ${userId}`);
+  let fullName = "";
+  let userType = userTypeHint || "";
+  
+  // Helper function to check if a string appears to be an email address
+  const isEmail = (str: string): boolean => {
+    return /\S+@\S+\.\S+/.test(str);
+  };
+  
+  // Helper function to validate and clean name
+  const validateName = (name: string): string | null => {
+    if (!name) return null;
+    if (isEmail(name)) {
+      console.log(`Rejected email as name: ${name}`);
+      return null;
+    }
+    return name;
+  };
+  
+  try {
+    // 1. First check users collection
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      userType = userType || userData.userType || "";
+      
+      // Check for name fields in user document but reject email addresses
+      const potentialNames = [
+        validateName(userData.name),
+        validateName(userData.fullName),
+        validateName(userData.displayName),
+        (userData.firstName && userData.lastName) ? validateName(`${userData.firstName} ${userData.lastName}`) : null
+      ];
+      
+      fullName = potentialNames.find(name => name !== null) || "";
+      
+      if (fullName) {
+        console.log(`Found name in users collection: ${fullName}`);
+        return fullName;
+      }
+      
+      console.log(`No valid name found in users collection, checking profiles...`);
+    }
+    
+    // 2. Next, check the appropriate collection based on user type
+    if (userType) {
+      const collectionName = userType === 'teacher' ? 'teachers' : 
+                            userType === 'parent' ? 'parents' : 'students';
+      
+      console.log(`Checking ${collectionName} collection...`);
+      const profileDoc = await getDoc(doc(db, collectionName, userId));
+      
+      if (profileDoc.exists()) {
+        const profileData = profileDoc.data();
+        
+        // Check all possible name fields, rejecting email addresses
+        const potentialNames = [
+          validateName(profileData.name),
+          validateName(profileData.fullName),
+          validateName(profileData.displayName),
+          (profileData.firstName && profileData.lastName) ? validateName(`${profileData.firstName} ${profileData.lastName}`) : null
+        ];
+        
+        fullName = potentialNames.find(name => name !== null) || "";
+        
+        if (fullName) {
+          console.log(`Found name in ${collectionName} collection: ${fullName}`);
+          return fullName;
+        }
+      }
+    }
+    
+    // 3. Check profiles/[type] path if we have a user type
+    if (userType) {
+      const profilePath = `profiles/${userType}s`;
+      console.log(`Checking ${profilePath} collection...`);
+      
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", `${userType}s`, userId));
+        
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
+          
+          // Check all possible name fields, rejecting email addresses
+          const potentialNames = [
+            validateName(profileData.name),
+            validateName(profileData.fullName),
+            validateName(profileData.displayName),
+            (profileData.firstName && profileData.lastName) ? validateName(`${profileData.firstName} ${profileData.lastName}`) : null
+          ];
+          
+          fullName = potentialNames.find(name => name !== null) || "";
+          
+          if (fullName) {
+            console.log(`Found name in ${profilePath} collection: ${fullName}`);
+            return fullName;
+          }
+        }
+      } catch (error) {
+        console.log(`Error checking ${profilePath}: ${error}`);
+      }
+    }
+    
+    // 4. Check direct profiles collection
+    console.log(`Checking direct profiles collection...`);
+    const profileDoc = await getDoc(doc(db, "profiles", userId));
+    
+    if (profileDoc.exists()) {
+      const profileData = profileDoc.data();
+      
+      // Check all possible name fields, rejecting email addresses
+      const potentialNames = [
+        validateName(profileData.name),
+        validateName(profileData.fullName),
+        validateName(profileData.displayName),
+        (profileData.firstName && profileData.lastName) ? validateName(`${profileData.firstName} ${profileData.lastName}`) : null
+      ];
+      
+      fullName = potentialNames.find(name => name !== null) || "";
+      
+      if (fullName) {
+        console.log(`Found name in profiles collection: ${fullName}`);
+        return fullName;
+      }
+    }
+    
+    // 5. Check collections with userId field
+    console.log(`Searching for profiles with userId field matching ${userId}...`);
+    const collections = ['teacherProfiles', 'studentProfiles', 'parentProfiles'];
+    
+    for (const collectionName of collections) {
+      const q = query(collection(db, collectionName), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const profileData = querySnapshot.docs[0].data();
+        
+        // Check all possible name fields, rejecting email addresses
+        const potentialNames = [
+          validateName(profileData.name),
+          validateName(profileData.fullName),
+          validateName(profileData.displayName),
+          (profileData.firstName && profileData.lastName) ? validateName(`${profileData.firstName} ${profileData.lastName}`) : null
+        ];
+        
+        fullName = potentialNames.find(name => name !== null) || "";
+        
+        if (fullName) {
+          console.log(`Found name in ${collectionName} with userId match: ${fullName}`);
+          return fullName;
+        }
+      }
+    }
+    
+    // 6. If still no name, check if we have a user type and return a generic name
+    if (userType) {
+      console.log(`No name found, using generic name based on user type: ${userType}`);
+      if (userType === 'student') {
+        return "A Student";
+      } else if (userType === 'parent') {
+        return "A Parent";
+      } else if (userType === 'teacher') {
+        return "A Teacher";
+      }
+    }
+    
+    console.log(`No name found for user ${userId}, using generic fallback`);
+    return "A User";
+  } catch (error) {
+    console.error(`Error getting user full name: ${error}`);
+    return "A User";
+  }
+}
 
 // Create a notification for a user
 export async function createNotification(
@@ -39,49 +218,25 @@ export async function createReviewNotification(
   rating: number
 ) {
   try {
-    // Get reviewer info to include in notification
-    const reviewerDoc = await getDoc(doc(db, "users", reviewerId));
-    let reviewerType = "";
-    
-    if (reviewerDoc.exists()) {
-      reviewerType = reviewerDoc.data().userType || "";
-    }
-    
-    // Determine collection based on user type
-    const userCollection = reviewerType === 'parent' ? 'parents' : 'students';
-    
-    // Try to get the reviewer profile
-    let reviewerProfileDoc = await getDoc(doc(db, userCollection, reviewerId));
-    
-    // Fallback: try the nested profiles path if the direct path doesn't exist
-    if (!reviewerProfileDoc.exists()) {
-      try {
-        reviewerProfileDoc = await getDoc(doc(db, "profiles", userCollection, reviewerId));
-      } catch (pathError) {
-        console.error("Error accessing legacy profile path:", pathError);
-      }
-    }
-    
-    let reviewerName = "Someone";
-    if (reviewerProfileDoc && reviewerProfileDoc.exists()) {
-      reviewerName = reviewerProfileDoc.data().name || 
-                    reviewerProfileDoc.data().fullName || 
-                    "Someone";
-    }
+    // Get the reviewer's full name
+    const reviewerName = await getUserFullName(reviewerId);
     
     // Create star rating representation
     const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
     
+    console.log(`Creating review notification with reviewer name: ${reviewerName}`);
+    
     // Create the notification
     await createNotification(
       teacherId,
-      "review", // Note: We need to add this type to NotificationType
+      "review",
       `New review from ${reviewerName}`,
       `You received a new ${rating}-star review (${stars})`,
       {
         reviewId,
         reviewerId,
-        rating
+        rating,
+        reviewerName
       }
     );
     
@@ -105,45 +260,17 @@ export async function createMessageNotification(params: MessageNotificationParam
   const { recipientId, senderId, senderName: providedSenderName, conversationId, messageText } = params;
   
   try {
-    let senderName = providedSenderName;
+    // Make sure provided name isn't an email address
+    let senderName: string;
     
-    // If sender name not provided, try to fetch it
-    if (!senderName) {
-      // Get sender info to include in notification
-      const senderDoc = await getDoc(doc(db, "users", senderId));
-      let senderType = "";
-      
-      if (senderDoc.exists()) {
-        senderType = senderDoc.data().userType;
-      }
-      
-      // Get sender profile
-      // Use direct collection path instead of nested path
-      const userCollection = senderType === 'teacher' ? 'teachers' : 
-                            senderType === 'parent' ? 'parents' : 'students';
-      
-      // Try to get the user profile from the direct collection first
-      let senderProfileDoc = await getDoc(doc(db, userCollection, senderId));
-      
-      // Fallback: try the nested profiles path if the direct path doesn't exist
-      if (!senderProfileDoc.exists()) {
-        console.log(`Profile not found in ${userCollection}, trying legacy path...`);
-        try {
-          // Only try this if necessary, with proper error handling
-          senderProfileDoc = await getDoc(doc(db, "profiles", `${senderType}s`, senderId));
-        } catch (pathError) {
-          console.error("Error accessing legacy profile path:", pathError);
-        }
-      }
-      
-      if (senderProfileDoc && senderProfileDoc.exists()) {
-        senderName = senderProfileDoc.data().name || 
-                    senderProfileDoc.data().fullName || 
-                    "Someone";
-      } else {
-        senderName = "Someone";
-      }
+    if (providedSenderName && !/\S+@\S+\.\S+/.test(providedSenderName)) {
+      senderName = providedSenderName;
+    } else {
+      // Look up the sender's full name - will already filter out emails
+      senderName = await getUserFullName(senderId);
     }
+    
+    console.log(`Creating message notification with sender name: ${senderName}`);
     
     // Create the notification
     await createNotification(
@@ -153,7 +280,8 @@ export async function createMessageNotification(params: MessageNotificationParam
       messageText.length > 50 ? `${messageText.substring(0, 50)}...` : messageText,
       {
         conversationId,
-        senderId
+        senderId,
+        senderName
       }
     );
   } catch (error) {
@@ -177,55 +305,19 @@ export async function createPhoneRequestNotification(params: PhoneRequestNotific
     requesterId, 
     requesterName: providedRequesterName, 
     requestId, 
-    status = "pending",
-    conversationId
+    status = 'pending',
+    conversationId 
   } = params;
   
   try {
-    let requesterName = providedRequesterName;
+    // Make sure provided name isn't an email address
+    let requesterName: string;
     
-    // If requester name not provided, try to fetch it
-    if (!requesterName) {
-      // Get requester info
-      const requesterDoc = await getDoc(doc(db, "users", requesterId));
-      let requesterType = "";
-      
-      if (requesterDoc.exists()) {
-        requesterType = requesterDoc.data().userType || "";
-      }
-      
-      // If requesterType is empty, default to student
-      if (!requesterType) {
-        requesterType = 'student';
-      }
-      
-      // Normalize type to ensure collection name is correct
-      const userCollection = requesterType === 'teacher' ? 'teachers' : 
-                            requesterType === 'parent' ? 'parents' : 'students';
-      
-      // Get requester profile from the direct collection
-      let requesterProfileDoc = await getDoc(doc(db, userCollection, requesterId));
-      
-      if (requesterProfileDoc.exists()) {
-        requesterName = requesterProfileDoc.data().name || 
-                       requesterProfileDoc.data().fullName || 
-                       "Someone";
-      } else {
-        // If no profile found in the direct collection, try looking in general profiles collection
-        try {
-          const fallbackProfileDoc = await getDoc(doc(db, "profiles", requesterId));
-          if (fallbackProfileDoc.exists()) {
-            requesterName = fallbackProfileDoc.data().name || 
-                           fallbackProfileDoc.data().fullName || 
-                           "Someone";
-          } else {
-            requesterName = "Someone";
-          }
-        } catch (error) {
-          requesterName = "Someone";
-          console.error("Error fetching requester fallback profile:", error);
-        }
-      }
+    if (providedRequesterName && !/\S+@\S+\.\S+/.test(providedRequesterName)) {
+      requesterName = providedRequesterName;
+    } else {
+      // Look up the requester's full name - will already filter out emails
+      requesterName = await getUserFullName(requesterId);
     }
     
     // Determine notification text based on status
@@ -244,9 +336,11 @@ export async function createPhoneRequestNotification(params: PhoneRequestNotific
       body = `Your phone request status has been updated`;
     }
     
+    console.log(`Creating phone request notification with requester name: ${requesterName}`);
+    
     // Create the notification
     await createNotification(
-      teacherId,
+      status === 'pending' ? teacherId : requesterId,
       "phone_request",
       title,
       body,
@@ -254,7 +348,8 @@ export async function createPhoneRequestNotification(params: PhoneRequestNotific
         requesterId,
         requestId,
         status,
-        conversationId
+        conversationId,
+        requesterName
       }
     );
   } catch (error) {

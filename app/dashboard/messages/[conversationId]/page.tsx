@@ -440,7 +440,7 @@ function ConversationPage() {
       await createMessageNotification({
         recipientId: otherUser.id,
         senderId: user.uid,
-        senderName: userProfile?.name || userProfile?.fullName || user.email || "User",
+        senderName: userProfile?.name || userProfile?.fullName || undefined,
         conversationId,
         messageText: text.trim() || "Sent an attachment"
       });
@@ -591,7 +591,7 @@ function ConversationPage() {
       await createPhoneRequestNotification({
         teacherId: otherUser.id,
         requesterId: user.uid,
-        requesterName: userProfile?.name || userProfile?.fullName || user.email || "User",
+        requesterName: userProfile?.name || userProfile?.fullName || undefined,
         conversationId
       });
       
