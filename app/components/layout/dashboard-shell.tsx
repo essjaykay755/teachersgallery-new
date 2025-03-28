@@ -2,7 +2,7 @@
 
 import { useState, ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications-context";
@@ -50,6 +50,7 @@ function SafeDashboardShell({ children }: DashboardShellProps) {
 function DashboardShellContent({ children, unreadCount }: DashboardShellProps & { unreadCount: number }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { userProfile, logout } = useAuth();
   
   const isTeacher = userProfile?.userType === "teacher";
@@ -198,6 +199,18 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
     </Link>
   );
 
+  // Handle logout with navigation
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback navigation even if there's an error
+      router.push("/");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Remove the mobile header as it's redundant */}
@@ -235,7 +248,7 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
             {navigationItems.map(renderTabItem)}
             <Separator className="my-2 mx-2" />
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="flex items-center gap-3 py-2.5 px-4 text-sm rounded-md mx-2 my-0.5 text-red-600 hover:bg-red-50 transition-all"
             >
               <LogOut className="h-[18px] w-[18px]" />
@@ -255,7 +268,7 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
                 {navigationItems.map(renderTabItem)}
                 <Separator className="my-2 mx-2" />
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="flex items-center gap-3 py-2.5 px-4 text-sm rounded-md mx-2 my-0.5 text-red-600 hover:bg-red-50 transition-all"
                 >
                   <LogOut className="h-[18px] w-[18px]" />
@@ -275,7 +288,7 @@ function DashboardShellContent({ children, unreadCount }: DashboardShellProps & 
                   {navigationItems.map(renderMobileNavCard)}
                   {/* Logout button as a card */}
                   <button
-                    onClick={logout}
+                    onClick={handleLogout}
                     className="flex flex-col items-center justify-center p-3 rounded-lg bg-white border border-gray-100 text-red-600 hover:bg-red-50 transition-all w-28 shrink-0 h-24"
                   >
                     <div className="p-2 rounded-full bg-red-50 mb-1.5">
