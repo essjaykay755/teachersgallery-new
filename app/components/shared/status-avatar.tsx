@@ -5,7 +5,7 @@ import {
   Avatar, 
   AvatarImage, 
   AvatarFallback 
-} from "@/app/components/ui/avatar";
+} from "@/app/components/shared/avatar";
 import { subscribeToUserOnlineStatus } from "@/lib/presence-service";
 import { cn } from "@/lib/utils";
 

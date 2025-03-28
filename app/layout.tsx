@@ -5,6 +5,7 @@ import { Navbar } from "@/app/components/layout/navbar";
 import { Footer } from "@/app/components/layout/footer";
 import { AuthProvider } from "@/lib/auth-context";
 import { NotificationsProvider } from "@/lib/notifications-context";
+import { AvatarCacheProvider } from "@/lib/avatar-cache-context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,11 +28,13 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased min-h-screen flex flex-col`}>
         <AuthProvider>
           <NotificationsProvider>
-            <Navbar />
-            <main className="flex-grow">
-              {children}
-            </main>
-            <Footer />
+            <AvatarCacheProvider>
+              <Navbar />
+              <main className="flex-grow">
+                {children}
+              </main>
+              <Footer />
+            </AvatarCacheProvider>
           </NotificationsProvider>
         </AuthProvider>
       </body>
